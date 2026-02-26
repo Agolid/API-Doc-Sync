@@ -13,9 +13,9 @@ export interface Config {
 }
 
 export interface GitHubConfig {
-  token: string;
-  owner: string;
-  repo: string;
+  token?: string;
+  owner?: string;
+  repo?: string;
   branch?: string;
   path?: string; // Docs path in repo
   createPR?: boolean;
@@ -25,12 +25,7 @@ const DEFAULT_CONFIG: Config = {
   input: './openapi.yaml',
   output: './docs',
   format: 'markdown',
-  language: 'en',
-  github: {
-    branch: 'main',
-    path: 'docs',
-    createPR: true
-  }
+  language: 'en'
 };
 
 const CONFIG_FILE = 'api-doc-sync.config.yml';

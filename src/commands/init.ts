@@ -125,7 +125,7 @@ export async function initCommand(): Promise<void> {
   const specPath = path.resolve(answers.input);
   if (!fs.existsSync(specPath)) {
     logger.info('Creating example OpenAPI spec...');
-    this.createExampleSpec(specPath);
+    createExampleSpec(specPath);
     logger.success(`Example spec created at ${specPath}`);
   }
 

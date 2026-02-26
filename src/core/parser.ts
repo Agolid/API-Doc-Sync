@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
-import * as swaggerParser from '@apidevtools/swagger-parser';
+import SwaggerParser from '@apidevtools/swagger-parser';
 import { logger } from '../utils/logger';
 
 export interface OpenAPISpec {
@@ -94,12 +94,12 @@ export class OpenAPIParser {
   }
 
   static async load(specPath: string): Promise<OpenAPIParser> {
-    let spec: OpenAPISpec;
+    let spec: any;
 
     if (specPath.startsWith('http://') || specPath.startsWith('https://')) {
       // Load from URL
       logger.info(`Loading OpenAPI spec from URL: ${specPath}`);
-      spec = await swaggerParser.validate(specPath);
+      spec = await SwaggerParser.validate(specPath);
     } else {
       // Load from file
       const fullPath = path.resolve(specPath);
@@ -114,14 +114,14 @@ export class OpenAPIParser {
       if (fullPath.endsWith('.json')) {
         spec = JSON.parse(content);
       } else {
-        spec = yaml.load(content) as OpenAPISpec;
+        spec = yaml.load(content);
       }
 
       // Validate spec
-      await swaggerParser.validate(spec);
+      await SwaggerParser.validate(spec);
     }
 
-    return new OpenAPIParser(spec);
+    return new OpenAPIParser(spec as OpenAPISpec);
   }
 
   getSpec(): OpenAPISpec {

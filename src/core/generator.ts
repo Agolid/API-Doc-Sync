@@ -213,7 +213,7 @@ export class DocGenerator {
   private generateApiContent(data: any): string {
     let content = `# API Reference\n\n`;
 
-    for (const [path, operations] of Object.entries(data.paths) as [string, any[]]) {
+    for (const [path, operations] of Object.entries(data.paths) as [string, any][]) {
       content += `## ${path}\n\n`;
 
       for (const { method, operation } of operations) {
