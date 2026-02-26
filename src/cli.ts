@@ -5,6 +5,7 @@ import chalk from 'chalk';
 import { initCommand } from './commands/init';
 import { generateCommand } from './commands/generate';
 import { syncCommand } from './commands/sync';
+import { diffCommand } from './commands/diff';
 
 const program = new Command();
 
@@ -70,15 +71,21 @@ program
     }
   });
 
-// Diff command (placeholder)
+// Diff command
 program
   .command('diff')
   .description('Show changes between OpenAPI spec versions')
-  .option('-i, --input <path>', 'OpenAPI spec path or URL')
   .option('-c, --config <path>', 'Path to config file')
+  .option('-v1, --version1 <version>', 'First version to compare')
+  .option('-v2, --version2 <version>', 'Second version to compare')
+  .option('-o, --output <dir>', 'Output directory')
   .action(async (options) => {
-    console.log(chalk.yellow('Diff command coming soon!'));
-    console.log(chalk.gray('This feature is planned for Phase 4.'));
+    try {
+      await diffCommand(options);
+    } catch (error: any) {
+      console.error(chalk.red(`Error: ${error.message}`));
+      process.exit(1);
+    }
   });
 
 // Parse arguments
