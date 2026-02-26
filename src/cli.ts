@@ -4,6 +4,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import { initCommand } from './commands/init';
 import { generateCommand } from './commands/generate';
+import { syncCommand } from './commands/sync';
 
 const program = new Command();
 
@@ -53,14 +54,20 @@ program
     }
   });
 
-// Sync command (placeholder)
+// Sync command
 program
   .command('sync')
   .description('Sync documentation to GitHub')
   .option('-c, --config <path>', 'Path to config file')
+  .option('-m, --message <text>', 'Commit message')
+  .option('-b, --branch <name>', 'Target branch')
   .action(async (options) => {
-    console.log(chalk.yellow('Sync command coming soon!'));
-    console.log(chalk.gray('This feature is planned for Phase 3.'));
+    try {
+      await syncCommand(options);
+    } catch (error: any) {
+      console.error(chalk.red(`Error: ${error.message}`));
+      process.exit(1);
+    }
   });
 
 // Diff command (placeholder)
