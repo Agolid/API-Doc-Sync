@@ -6,11 +6,11 @@ import { initCommand } from './commands/init';
 import { generateCommand } from './commands/generate';
 import { syncCommand } from './commands/sync';
 import { diffCommand } from './commands/diff';
+import packageJson from '../package.json';
 
 const program = new Command();
 
 // CLI version
-const packageJson = require('../package.json');
 const version = packageJson.version;
 
 // CLI info
