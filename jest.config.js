@@ -11,5 +11,8 @@ module.exports = {
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov'],
   moduleFileExtensions: ['ts', 'js', 'json'],
-  verbose: true
+  verbose: true,
+  transformIgnorePatterns: [
+    'node_modules/(?!(chalk|marked|octokit)/)'
+  ]
 };
