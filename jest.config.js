@@ -13,6 +13,9 @@ module.exports = {
   moduleFileExtensions: ['ts', 'js', 'json'],
   verbose: true,
   transformIgnorePatterns: [
-    'node_modules/(?!(chalk|marked|octokit)/)'
-  ]
+    'node_modules/(?!(chalk|marked|octokit|@octokit)/)'
+  ],
+  moduleNameMapper: {
+    '^chalk$': 'chalk'
+  }
 };
