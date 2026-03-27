@@ -9,6 +9,9 @@ import { logger } from '../utils/logger';
 Handlebars.registerHelper('toUpperCase', (str: string) => str.toUpperCase());
 Handlebars.registerHelper('json', (obj: any) => JSON.stringify(obj, null, 2));
 Handlebars.registerHelper('contains', (arr: string[], item: string) => arr && arr.includes(item));
+Handlebars.registerHelper('slugify', (str: string) => {
+  return str.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, '').replace(/--+/g, '-').replace(/^-+/, '').replace(/-+$/, '');
+});
 
 // i18n labels
 const I18N: Record<string, Record<string, string>> = {
@@ -74,6 +77,8 @@ export class DocGenerator {
     logger.info('Generating documentation...');
 
     const outputDir = path.resolve(this.options.output);
+    const isHtml = this.options.format === 'html';
+    const ext = isHtml ? 'html' : 'md';
 
     // Create output directory if it doesn't exist
     if (!fs.existsSync(outputDir)) {
@@ -82,13 +87,14 @@ export class DocGenerator {
 
     const generatedFiles: string[] = [];
 
-    // Generate README.md
-    const readmePath = path.join(outputDir, 'README.md');
+    // Generate README
+    const readmeName = isHtml ? 'index.html' : `README.${ext}`;
+    const readmePath = path.join(outputDir, readmeName);
     await this.generateReadme(readmePath);
     generatedFiles.push(readmePath);
 
     // Generate API docs
-    const apiDocsPath = path.join(outputDir, 'API.md');
+    const apiDocsPath = path.join(outputDir, `API.${ext}`);
     await this.generateApiDocs(apiDocsPath);
     generatedFiles.push(apiDocsPath);
 
@@ -96,8 +102,8 @@ export class DocGenerator {
     const tags = this.parser.getTags();
     if (tags.length > 0) {
       for (const tag of tags) {
-        const tagPath = path.join(outputDir, `${this.slugify(tag.name)}.md`);
-        await this.generateTagDocs(tagPath, tag.name);
+        const tagPath = path.join(outputDir, `${this.slugify(tag.name)}.${ext}`);
+        await this.generateTagDocs(tagPath, tag.name, tags);
         generatedFiles.push(tagPath);
       }
     }
@@ -105,7 +111,7 @@ export class DocGenerator {
     // Generate schemas docs
     const schemas = this.parser.getSchemas();
     if (Object.keys(schemas).length > 0) {
-      const schemasPath = path.join(outputDir, 'Schemas.md');
+      const schemasPath = path.join(outputDir, `Schemas.${ext}`);
       await this.generateSchemasDocs(schemasPath);
       generatedFiles.push(schemasPath);
     }
@@ -116,13 +122,15 @@ export class DocGenerator {
   }
 
   private async generateReadme(outputPath: string): Promise<void> {
-    logger.info('Generating README.md...');
+    const isHtml = this.options.format === 'html';
+    const tplName = isHtml ? 'README.html.hbs' : 'README.hbs';
+    logger.info(`Generating ${isHtml ? 'index.html' : 'README.md'}...`);
 
-    const spec = this.parser.getSpec();
     const info = this.parser.getInfo();
     const servers = this.parser.getServers();
+    const tags = this.parser.getTags();
 
-    const content = this.renderTemplate('README.hbs', {
+    const content = this.renderTemplate(tplName, {
       title: info.title,
       version: info.version,
       description: info.description,
@@ -130,14 +138,17 @@ export class DocGenerator {
       license: info.license,
       servers,
       versionNumber: info.version,
-      generatedAt: new Date().toISOString()
+      generatedAt: new Date().toISOString(),
+      hasTags: tags.length > 0,
     });
 
     fs.writeFileSync(outputPath, content, 'utf8');
   }
 
   private async generateApiDocs(outputPath: string): Promise<void> {
-    logger.info('Generating API.md...');
+    const isHtml = this.options.format === 'html';
+    const tplName = isHtml ? 'API.html.hbs' : 'API.hbs';
+    logger.info(`Generating API.${isHtml ? 'html' : 'md'}...`);
 
     const operations = this.parser.getOperations();
 
@@ -154,7 +165,7 @@ export class DocGenerator {
       });
     }
 
-    const content = this.renderTemplate('API.hbs', {
+    const content = this.renderTemplate(tplName, {
       paths,
       title: this.parser.getTitle(),
       version: this.parser.getVersion()
@@ -163,26 +174,31 @@ export class DocGenerator {
     fs.writeFileSync(outputPath, content, 'utf8');
   }
 
-  private async generateTagDocs(outputPath: string, tagName: string): Promise<void> {
-    logger.info(`Generating ${tagName}.md...`);
+  private async generateTagDocs(outputPath: string, tagName: string, allTags?: any[]): Promise<void> {
+    const isHtml = this.options.format === 'html';
+    const tplName = isHtml ? 'Tag.html.hbs' : 'Tag.hbs';
+    logger.info(`Generating ${tagName}.${isHtml ? 'html' : 'md'}...`);
 
     const operations = this.parser.getOperationsByTag(tagName);
 
-    const content = this.renderTemplate('Tag.hbs', {
+    const content = this.renderTemplate(tplName, {
       tagName,
       operations,
-      title: this.parser.getTitle()
+      title: this.parser.getTitle(),
+      allTags: allTags || this.parser.getTags(),
     });
 
     fs.writeFileSync(outputPath, content, 'utf8');
   }
 
   private async generateSchemasDocs(outputPath: string): Promise<void> {
-    logger.info('Generating Schemas.md...');
+    const isHtml = this.options.format === 'html';
+    const tplName = isHtml ? 'Schemas.html.hbs' : 'Schemas.hbs';
+    logger.info(`Generating Schemas.${isHtml ? 'html' : 'md'}...`);
 
     const schemas = this.parser.getSchemas();
 
-    const content = this.renderTemplate('Schemas.hbs', {
+    const content = this.renderTemplate(tplName, {
       schemas,
       title: this.parser.getTitle()
     });
