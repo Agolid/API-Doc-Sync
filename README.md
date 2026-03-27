@@ -1,135 +1,213 @@
-# API-Doc-Sync
+<div align="center">
 
-[![npm version](https://badge.fury.io/js/api-doc-sync.svg)](https://www.npmjs.com/package/api-doc-sync)
+# 📄 API-Doc-Sync
+
+**OpenAPI / Swagger 文档自动化工具**
+
+从 OpenAPI 规范生成 Markdown / HTML 文档，并自动同步到 GitHub 仓库。
+
+[![CI](https://github.com/Agolid/API-Doc-Sync/actions/workflows/build.yml/badge.svg)](https://github.com/Agolid/API-Doc-Sync/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-> OpenAPI/Swagger documentation automation tool - Generate Markdown documentation from OpenAPI specifications and sync to GitHub automatically.
+[功能特性](#-功能特性) · [快速开始](#-快速开始) · [命令参考](#-命令参考) · [配置文件](#-配置文件) · [GitHub 集成](#-github-集成) · [作为库使用](#-作为库使用)
 
-## Features
+</div>
 
-- ✅ **OpenAPI 3.0 & Swagger 2.0** - Support for both specifications
-- ✅ **Multiple Formats** - Markdown, HTML, PDF output
-- ✅ **GitHub Integration** - Automatic sync with GitHub repositories
-- ✅ **Version Management** - Track API changes with version tags
-- ✅ **CLI Tool** - Easy-to-use command-line interface
-- ✅ **Custom Templates** - Use Handlebars templates for customization
-- ✅ **Multi-language** - English and Chinese documentation support
+---
 
-## Installation
+## ✨ 功能特性
 
-### Global Install
+- **OpenAPI 3.0 & Swagger 2.0** — 完整支持两种规范
+- **多格式输出** — Markdown 和 HTML 格式
+- **GitHub 集成** — 自动同步文档到 GitHub 仓库，支持直接推送或创建 PR
+- **版本对比** — 检测 API 规范变更，生成 diff 报告
+- **规范校验** — 验证 OpenAPI / Swagger 规范的正确性
+- **实时监听** — 监听 spec 文件变化，自动重新生成文档
+- **多语言** — 支持英文和中文文档生成
+- **自定义模板** — 使用 Handlebars 模板定制文档样式
+
+## 📦 安装
+
+> ⚠️ 尚未发布到 npm，敬请期待。
 
 ```bash
+# TODO: npm publish 后可用
 npm install -g api-doc-sync
 ```
 
-### Local Install
+## 🚀 快速开始
 
 ```bash
-npm install --save-dev api-doc-sync
-```
-
-## Quick Start
-
-### 1. Initialize Configuration
-
-```bash
+# 1. 初始化项目配置
 api-doc-sync init
+
+# 2. 生成文档（Markdown 格式）
+api-doc-sync generate -i ./openapi.yaml -o ./docs
+
+# 3. 生成 HTML 文档
+api-doc-sync generate -i ./openapi.yaml -o ./docs-html -f html
+
+# 4. 同步到 GitHub
+api-doc-sync sync --create-pr
 ```
 
-This will guide you through setting up:
-- OpenAPI spec path or URL
-- Output directory
-- Output format
-- GitHub integration (optional)
-
-### 2. Generate Documentation
-
-```bash
-api-doc-sync generate
-```
-
-### 3. Sync to GitHub (Coming Soon)
-
-```bash
-api-doc-sync sync
-```
-
-## Usage
-
-### CLI Commands
-
-#### `api-doc-sync init`
-
-Initialize api-doc-sync in your project.
-
-```bash
-api-doc-sync init
-```
-
-#### `api-doc-sync generate`
-
-Generate documentation from OpenAPI spec.
-
-```bash
-api-doc-sync generate
-```
-
-Options:
-- `-i, --input <path>` - OpenAPI spec path or URL
-- `-o, --output <dir>` - Output directory
-- `-f, --format <format>` - Output format (markdown, html, pdf)
-- `-c, --config <path>` - Path to config file
-
-Example:
-```bash
-api-doc-sync generate -i ./openapi.yaml -o ./docs -f markdown
-```
-
-#### `api-doc-sync sync`
-
-Sync documentation to GitHub. (Coming in Phase 3)
-
-#### `api-doc-sync diff`
-
-Show changes between API versions. (Coming in Phase 4)
-
-### Configuration File
-
-Create a `api-doc-sync.config.yml` file:
-
-```yaml
-input: ./openapi.yaml
-output: ./docs
-format: markdown
-language: en
-
-github:
-  token: YOUR_GITHUB_TOKEN
-  owner: your-username
-  repo: your-repo
-  branch: main
-  path: docs
-  createPR: true
-```
-
-## Output Structure
-
-Generated documentation structure:
+生成的文档结构：
 
 ```
 docs/
-├── README.md           # Main documentation
-├── API.md              # API reference
-├── Schemas.md          # Data schemas
-├── Users.md            # Tag-specific docs (if tags exist)
-├── Posts.md            # Tag-specific docs (if tags exist)
+├── README.md               # 主文档
+├── API.md                  # API 参考
+├── Schemas.md              # 数据模型
+├── Users.md                # 按标签分组的文档
+├── Posts.md
 └── .generation-summary.json
 ```
 
-## GitHub Actions Integration
+## 📖 命令参考
 
-Create `.github/workflows/api-doc-sync.yml`:
+### `init`
+
+交互式初始化项目配置文件。
+
+```bash
+api-doc-sync init
+```
+
+### `generate`
+
+从 OpenAPI 规范生成文档。
+
+```bash
+api-doc-sync generate [options]
+```
+
+| 选项 | 简写 | 默认值 | 说明 |
+|------|------|--------|------|
+| `--input <path>` | `-i` | — | OpenAPI 规范文件路径或 URL |
+| `--output <dir>` | `-o` | — | 输出目录 |
+| `--format <format>` | `-f` | `markdown` | 输出格式：`markdown`、`html`、`pdf` |
+| `--config <path>` | `-c` | — | 配置文件路径 |
+| `--language <lang>` | `-l` | `en` | 文档语言：`en`、`zh` |
+| `--no-version` | — | — | 跳过版本保存 |
+
+示例：
+
+```bash
+# 使用 URL 作为输入
+api-doc-sync generate -i https://petstore.swagger.io/v2/swagger.yaml -o ./docs
+
+# 生成中文 HTML 文档
+api-doc-sync generate -i ./openapi.yaml -o ./docs -f html -l zh
+
+# 使用配置文件
+api-doc-sync generate -c ./api-doc-sync.config.yml
+```
+
+### `sync`
+
+将生成的文档同步到 GitHub 仓库。
+
+```bash
+api-doc-sync sync [options]
+```
+
+| 选项 | 简写 | 说明 |
+|------|------|------|
+| `--config <path>` | `-c` | 配置文件路径 |
+| `--message <text>` | `-m` | 提交信息 |
+| `--branch <name>` | `-b` | 目标分支 |
+| `--create-pr` | — | 创建 Pull Request（默认） |
+| `--no-create-pr` | — | 直接推送到目标分支 |
+
+### `diff`
+
+比较两个版本的 OpenAPI 规范差异。
+
+```bash
+api-doc-sync diff [options]
+```
+
+| 选项 | 简写 | 说明 |
+|------|------|------|
+| `--config <path>` | `-c` | 配置文件路径 |
+| `--version1 <version>` | `-v1` | 第一个版本 |
+| `--version2 <version>` | `-v2` | 第二个版本 |
+| `--output <dir>` | `-o` | 输出目录 |
+
+### `validate`
+
+验证 OpenAPI / Swagger 规范文件的正确性。
+
+```bash
+api-doc-sync validate [spec-path] [options]
+```
+
+| 选项 | 简写 | 说明 |
+|------|------|------|
+| `spec-path` | — | 规范文件路径（可选） |
+| `--config <path>` | `-c` | 配置文件路径 |
+
+### `watch`
+
+监听输入文件变化，自动重新生成文档。
+
+```bash
+api-doc-sync watch [options]
+```
+
+| 选项 | 简写 | 说明 |
+|------|------|------|
+| `--input <path>` | `-i` | OpenAPI 规范文件路径或 URL |
+| `--output <dir>` | `-o` | 输出目录 |
+| `--config <path>` | `-c` | 配置文件路径 |
+| `--language <lang>` | `-l` | 文档语言：`en`、`zh` |
+
+## ⚙️ 配置文件
+
+创建 `api-doc-sync.config.yml`：
+
+```yaml
+# OpenAPI 规范路径（本地文件或 URL）
+input: ./openapi.yaml
+
+# 输出目录
+output: ./docs
+
+# 输出格式：markdown | html | pdf
+format: markdown
+
+# 文档语言：en | zh
+language: en
+
+# GitHub 同步配置（可选）
+github:
+  token: ${GITHUB_TOKEN}     # 建议使用环境变量
+  owner: your-username
+  repo: your-repo
+  branch: main
+  path: docs                  # 仓库中的文档路径
+  createPR: true              # 创建 PR 而非直接推送
+```
+
+## 🔗 GitHub 集成
+
+### 直接推送模式
+
+```bash
+api-doc-sync sync --no-create-pr
+```
+
+文档将直接推送到配置的目标分支。
+
+### Pull Request 模式
+
+```bash
+api-doc-sync sync --create-pr
+```
+
+将文档推送到一个新分支，并自动创建 Pull Request，便于审查。
+
+### GitHub Actions 示例
 
 ```yaml
 name: API Documentation Sync
@@ -144,78 +222,58 @@ jobs:
   sync-docs:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: Install api-doc-sync
-        run: npm install -g api-doc-sync
-
-      - name: Generate Documentation
-        run: api-doc-sync generate
-
-      - name: Sync to GitHub
-        run: api-doc-sync sync
+      - run: npm install -g api-doc-sync
+      - run: api-doc-sync generate
+      - run: api-doc-sync sync --create-pr
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-## Roadmap
+## 📚 作为库使用
 
-### Phase 1 ✅ (Current)
-- [x] CLI framework
-- [x] OpenAPI/Swagger parser
-- [x] Markdown documentation generation
-- [x] Init and generate commands
+```typescript
+import { OpenAPIParser, DocGenerator } from 'api-doc-sync';
 
-### Phase 2 🚧 (In Progress)
-- [ ] Custom template support
-- [ ] Multi-language docs (EN/CN)
-- [ ] Better error handling
+// 解析 OpenAPI 规范
+const parser = new OpenAPIParser('./openapi.yaml');
+const spec = await parser.parse();
 
-### Phase 3 📋 (Planned)
-- [ ] GitHub API integration
-- [ ] Auto-sync to GitHub
-- [ ] Pull Request creation
-- [ ] Webhook notifications
+// 生成文档
+const generator = new DocGenerator({
+  output: './docs',
+  format: 'markdown',
+  language: 'en'
+});
 
-### Phase 4 📋 (Planned)
-- [ ] Version management
-- [ ] Change tracking
-- [ ] Changelog generation
-- [ ] Breaking change detection
+await generator.generate(spec);
+```
 
-### Phase 5 📋 (Planned)
-- [ ] HTML generation
-- [ ] PDF export
-- [ ] Postman collection generation
-- [ ] Test case generation
+## 🛠️ 开发
 
-### Phase 6 📋 (Planned)
-- [ ] GitHub Actions templates
-- [ ] Enhanced CI/CD integration
-- [ ] Performance optimization
-- [ ] Unit tests (>80% coverage)
+```bash
+# 克隆仓库
+git clone https://github.com/Agolid/API-Doc-Sync.git
+cd API-Doc-Sync
 
-## Contributing
+# 安装依赖
+npm install
 
-Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+# 构建
+npm run build
 
-## License
+# 测试
+npm test
 
-MIT © [斯克鲁奇](https://github.com/Agolid)
+# 本地链接（开发调试）
+npm link
+```
 
-## Links
+## 📄 License
 
-- [GitHub Repository](https://github.com/Agolid/api-doc-sync)
-- [NPM Package](https://www.npmjs.com/package/api-doc-sync)
-- [OpenAPI Specification](https://swagger.io/specification/)
-- [Issues](https://github.com/Agolid/api-doc-sync/issues)
-
----
-
-Made with ❤️ by [斯克鲁奇](https://github.com/Agolid)
+MIT © [Agolid](https://github.com/Agolid)
