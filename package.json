@@ -1,13 +1,13 @@
 {
   "name": "api-doc-sync",
-  "version": "0.1.0",
-  "description": "OpenAPI/Swagger文档自动化工具 - 从OpenAPI规范生成Markdown文档并自动同步到GitHub",
+  "version": "1.0.0",
+  "description": "Automate OpenAPI/Swagger documentation - generate Markdown & HTML docs from specs and sync to GitHub",
   "main": "dist/index.js",
   "bin": {
     "api-doc-sync": "./dist/cli.js"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && cp -r src/templates dist/templates",
     "dev": "ts-node src/cli.ts",
     "test": "jest",
     "lint": "eslint src --ext .ts",
@@ -19,10 +19,14 @@
     "swagger",
     "documentation",
     "markdown",
+    "html",
     "github",
     "cli",
     "api",
-    "generator"
+    "generator",
+    "api-doc-sync",
+    "rest",
+    "api-docs"
   ],
   "author": "斯克鲁奇 <agolid@github>",
   "license": "MIT",

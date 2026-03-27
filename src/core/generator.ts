@@ -220,7 +220,7 @@ export class DocGenerator {
     }
 
     // Use built-in template
-    const builtInTemplatePath = path.join(__dirname, '../../templates', templateName);
+    const builtInTemplatePath = path.join(__dirname, '../templates', templateName);
 
     if (!fs.existsSync(builtInTemplatePath)) {
       // Fallback to inline template

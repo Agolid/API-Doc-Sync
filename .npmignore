@@ -1,0 +1,16 @@
+src/
+__tests__/
+test-output/
+versions/
+docs/
+examples/
+.git/
+node_modules/
+tsconfig.json
+jest.config.js
+.eslintrc.json
+.husky/
+*.tsbuildinfo
+CHANGELOG.md
+CONTRIBUTING.md
+SECURITY.md
