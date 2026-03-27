@@ -50,6 +50,7 @@ program
   .option('-c, --config <path>', 'Path to config file')
   .option('-l, --language <lang>', 'Documentation language (en, zh)', 'en')
   .option('--no-version', 'Skip version saving')
+  .option('--open', 'Open generated HTML in browser (PDF mode only)')
   .action(async (options) => {
     try {
       await generateCommand(options);

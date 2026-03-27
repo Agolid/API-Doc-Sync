@@ -79,7 +79,9 @@ export class DocGenerator {
     logger.info('Generating documentation...');
 
     const outputDir = path.resolve(this.options.output);
-    const isHtml = this.options.format === 'html';
+    const format = this.options.format;
+    const isHtml = format === 'html';
+    const isPdf = format === 'pdf';
     const ext = isHtml ? 'html' : 'md';
 
     // Create output directory if it doesn't exist
@@ -88,6 +90,11 @@ export class DocGenerator {
     }
 
     const generatedFiles: string[] = [];
+
+    if (isPdf) {
+      // For PDF: generate markdown files first, then create a single print-friendly HTML
+      return this.generatePdf(outputDir);
+    }
 
     // Generate README
     const readmeName = isHtml ? 'index.html' : `README.${ext}`;
@@ -121,6 +128,246 @@ export class DocGenerator {
     logger.success(`Generated ${generatedFiles.length} documentation file(s)`);
 
     return generatedFiles;
+  }
+
+  private async generatePdf(outputDir: string): Promise<string[]> {
+    const generatedFiles: string[] = [];
+
+    // Temporarily set format to markdown to generate .md files
+    const originalFormat = this.options.format;
+    this.options.format = 'markdown';
+
+    // Generate all markdown files
+    const readmePath = path.join(outputDir, 'README.md');
+    await this.generateReadme(readmePath);
+    generatedFiles.push(readmePath);
+
+    const apiDocsPath = path.join(outputDir, 'API.md');
+    await this.generateApiDocs(apiDocsPath);
+    generatedFiles.push(apiDocsPath);
+
+    const tags = this.parser.getTags();
+    for (const tag of tags) {
+      const tagPath = path.join(outputDir, `${this.slugify(tag.name)}.md`);
+      await this.generateTagDocs(tagPath, tag.name, tags);
+      generatedFiles.push(tagPath);
+    }
+
+    const schemas = this.parser.getSchemas();
+    if (Object.keys(schemas).length > 0) {
+      const schemasPath = path.join(outputDir, 'Schemas.md');
+      await this.generateSchemasDocs(schemasPath);
+      generatedFiles.push(schemasPath);
+    }
+
+    // Restore format
+    this.options.format = originalFormat;
+
+    // Now combine all markdown into a single print-friendly HTML
+    logger.info('Generating print-friendly HTML for PDF...');
+    const htmlContent = await this.generatePdfHtml(outputDir, generatedFiles);
+    const htmlPath = path.join(outputDir, 'index.html');
+    fs.writeFileSync(htmlPath, htmlContent, 'utf8');
+    generatedFiles.unshift(htmlPath);
+
+    logger.success(`Generated ${generatedFiles.length} documentation file(s)`);
+    return generatedFiles;
+  }
+
+  private async generatePdfHtml(outputDir: string, mdFiles: string[]): Promise<string> {
+    // Read all markdown files and convert to HTML
+    const sections: { title: string; html: string; id: string }[] = [];
+
+    for (const filePath of mdFiles) {
+      const md = fs.readFileSync(filePath, 'utf8');
+      const html = await marked(md);
+      const fileName = path.basename(filePath, '.md');
+      // Extract first H1 as section title, or use filename
+      const h1Match = md.match(/^#\s+(.+)$/m);
+      const title = h1Match ? h1Match[1] : fileName;
+      sections.push({ title, html, id: this.slugify(title) });
+    }
+
+    // Build table of contents
+    let tocItems = '';
+    for (const section of sections) {
+      tocItems += `<li><a href="#${section.id}">${section.title}</a></li>\n`;
+    }
+
+    // Build body content with page breaks
+    let bodyContent = '';
+    for (let i = 0; i < sections.length; i++) {
+      bodyContent += `<section id="${sections[i].id}" class="doc-section">${sections[i].html}</section>\n`;
+      if (i < sections.length - 1) {
+        bodyContent += '<div class="page-break"></div>\n';
+      }
+    }
+
+    const pageTitle = this.parser.getTitle() || 'API Documentation';
+
+    return `<!DOCTYPE html>
+<html lang="${this.options.language || 'en'}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${pageTitle}</title>
+  <style>
+    @page {
+      margin: 2cm;
+      @bottom-center {
+        content: counter(page);
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      line-height: 1.6;
+      color: #1a1a1a;
+      max-width: 100%;
+      margin: 0;
+      padding: 0;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    h1 { font-size: 2em; border-bottom: 2px solid #e0e0e0; padding-bottom: 0.3em; }
+    h2 { font-size: 1.5em; border-bottom: 1px solid #e0e0e0; padding-bottom: 0.2em; margin-top: 2em; }
+    h3 { font-size: 1.25em; margin-top: 1.5em; }
+    h4 { font-size: 1.1em; }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 1em 0;
+      font-size: 0.9em;
+    }
+
+    th, td {
+      border: 1px solid #d0d0d0;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background-color: #f5f5f5;
+      font-weight: 600;
+    }
+
+    tr:nth-child(even) { background-color: #fafafa; }
+
+    code {
+      background-color: #f4f4f4;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background-color: #f8f8f8;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+      padding: 12px;
+      overflow-x: auto;
+      font-size: 0.85em;
+      line-height: 1.5;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    blockquote {
+      border-left: 4px solid #ddd;
+      margin: 1em 0;
+      padding: 0.5em 1em;
+      color: #666;
+    }
+
+    a { color: #0366d6; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    hr { border: none; border-top: 1px solid #e0e0e0; margin: 2em 0; }
+
+    .toc {
+      background: #f9f9f9;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      padding: 16px 24px;
+      margin: 20px 0;
+    }
+
+    .toc h2 { margin-top: 0; border: none; font-size: 1.2em; }
+
+    .toc ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .toc li { padding: 4px 0; }
+
+    .page-break {
+      page-break-after: always;
+      border: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .doc-section { margin-bottom: 1em; }
+
+    @media print {
+      body { padding: 0; }
+      .container { padding: 0; max-width: 100%; }
+      .toc { break-after: page; }
+      .page-break { display: block; }
+      h2 { break-after: avoid; }
+      table { break-inside: avoid; }
+      pre { break-inside: avoid; }
+      a { color: #000; text-decoration: underline; }
+      a[href^="http"]::after { content: " (" attr(href) ")"; font-size: 0.8em; }
+    }
+
+    @media screen {
+      body { background: #fff; }
+    }
+
+    .print-hint {
+      text-align: center;
+      padding: 10px;
+      background: #e8f4fd;
+      border: 1px solid #b3d9f2;
+      border-radius: 4px;
+      margin-bottom: 20px;
+      font-size: 0.9em;
+    }
+
+    @media print {
+      .print-hint { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="print-hint">
+      🖨️ Use <strong>Ctrl+P</strong> (or <strong>Cmd+P</strong> on Mac) to print or save as PDF
+    </div>
+
+    <div class="toc">
+      <h2>📑 Table of Contents</h2>
+      <ul>${tocItems}</ul>
+    </div>
+
+    ${bodyContent}
+  </div>
+</body>
+</html>`;
   }
 
   private async generateReadme(outputPath: string): Promise<void> {

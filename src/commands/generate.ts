@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { execSync } from 'child_process';
 import { OpenAPIParser } from '../core/parser';
 import { DocGenerator } from '../core/generator';
 import { configManager, Config } from '../utils/config';
@@ -13,6 +14,7 @@ export async function generateCommand(options: {
   config?: string;
   language?: string;
   noVersion?: boolean;
+  open?: boolean;
 }): Promise<void> {
   // Load config
   if (options.config) {
@@ -64,6 +66,22 @@ export async function generateCommand(options: {
     const generatedFiles = await generator.generate();
 
     logger.success(`Documentation generated successfully!`);
+
+    // Open in browser if --open flag is set (PDF mode)
+    if (options.open && config.format === 'pdf') {
+      const htmlFile = path.resolve(config.output, 'index.html');
+      if (fs.existsSync(htmlFile)) {
+        logger.info('Opening HTML in browser...');
+        const filePath = `file://${htmlFile}`;
+        try {
+          const cmd = process.platform === 'win32' ? 'start' :
+                      process.platform === 'darwin' ? 'open' : 'xdg-open';
+          execSync(`${cmd} "${htmlFile}"`, { stdio: 'ignore' });
+        } catch {
+          logger.warn('Could not open browser automatically. Open the HTML file manually.');
+        }
+      }
+    }
 
     // Print generated files
     logger.info('Generated files:');
