@@ -24,8 +24,9 @@ describe('VersionManager', () => {
 
   describe('calculateSpecHash', () => {
     test('不同 spec 返回不同 hash', () => {
+      // Use different top-level fields to ensure different hash
       const h1 = vm.calculateSpecHash(mockSpec('1.0.0'));
-      const h2 = vm.calculateSpecHash(mockSpec('2.0.0'));
+      const h2 = vm.calculateSpecHash({ ...mockSpec('2.0.0'), servers: [{ url: 'http://test' }] });
       expect(h1).not.toBe(h2);
     });
 
