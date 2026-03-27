@@ -55,7 +55,7 @@ a{color:#667eea}
         <tr>
           <td><code>{{@key}}</code></td>
           <td>{{#if this.type}}<code>{{this.type}}</code>{{#if this.format}} ({{this.format}}){{/if}}{{else}}{{#if this.$ref}}<code>{{this.$ref}}</code>{{else}}object{{/if}}{{/if}}{{#if this.items}}[]{{/if}}</td>
-          <td>{{#if ../required}}{{#contains ../required @key}}✅{{else}}❌{{/if}}{{else}}❌{{/if}}</td>
+          <td>{{#if ../required}}{{#if (contains ../required @key)}}✅{{else}}❌{{/if}}{{else}}❌{{/if}}</td>
           <td>{{#if this.description}}{{this.description}}{{else}}-{{/if}}</td>
         </tr>
 {{/each}}

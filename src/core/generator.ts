@@ -8,7 +8,9 @@ import { logger } from '../utils/logger';
 // Register Handlebars helpers
 Handlebars.registerHelper('toUpperCase', (str: string) => str.toUpperCase());
 Handlebars.registerHelper('json', (obj: any) => JSON.stringify(obj, null, 2));
-Handlebars.registerHelper('contains', (arr: string[], item: string) => arr && arr.includes(item));
+Handlebars.registerHelper('contains', (arr: string[], item: string) => {
+  return arr && arr.includes(item);
+});
 Handlebars.registerHelper('slugify', (str: string) => {
   return str.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, '').replace(/--+/g, '-').replace(/^-+/, '').replace(/-+$/, '');
 });
@@ -161,6 +163,7 @@ export class DocGenerator {
       }
       paths[path].push({
         method,
+        path,
         operation
       });
     }
