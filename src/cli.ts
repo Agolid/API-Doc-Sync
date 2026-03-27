@@ -6,6 +6,8 @@ import { initCommand } from './commands/init';
 import { generateCommand } from './commands/generate';
 import { syncCommand } from './commands/sync';
 import { diffCommand } from './commands/diff';
+import { validateCommand } from './commands/validate';
+import { watchCommand } from './commands/watch';
 import packageJson from '../package.json';
 
 const program = new Command();
@@ -47,6 +49,7 @@ program
   .option('-f, --format <format>', 'Output format (markdown, html, pdf)', 'markdown')
   .option('-c, --config <path>', 'Path to config file')
   .option('-l, --language <lang>', 'Documentation language (en, zh)', 'en')
+  .option('--no-version', 'Skip version saving')
   .action(async (options) => {
     try {
       await generateCommand(options);
@@ -63,6 +66,8 @@ program
   .option('-c, --config <path>', 'Path to config file')
   .option('-m, --message <text>', 'Commit message')
   .option('-b, --branch <name>', 'Target branch')
+  .option('--create-pr', 'Create a pull request instead of pushing directly')
+  .option('--no-create-pr', 'Push directly instead of creating a PR')
   .action(async (options) => {
     try {
       await syncCommand(options);
@@ -83,6 +88,37 @@ program
   .action(async (options) => {
     try {
       await diffCommand(options);
+    } catch (error: any) {
+      console.error(chalk.red(`Error: ${error.message}`));
+      process.exit(1);
+    }
+  });
+
+// Validate command
+program
+  .command('validate [spec-path]')
+  .description('Validate an OpenAPI/Swagger specification')
+  .option('-c, --config <path>', 'Path to config file')
+  .action(async (specPath, options) => {
+    try {
+      await validateCommand({ specPath, ...options });
+    } catch (error: any) {
+      console.error(chalk.red(`Error: ${error.message}`));
+      process.exit(1);
+    }
+  });
+
+// Watch command
+program
+  .command('watch')
+  .description('Watch input spec and regenerate docs on change')
+  .option('-i, --input <path>', 'OpenAPI spec path or URL')
+  .option('-o, --output <dir>', 'Output directory')
+  .option('-c, --config <path>', 'Path to config file')
+  .option('-l, --language <lang>', 'Documentation language (en, zh)')
+  .action(async (options) => {
+    try {
+      await watchCommand(options);
     } catch (error: any) {
       console.error(chalk.red(`Error: ${error.message}`));
       process.exit(1);

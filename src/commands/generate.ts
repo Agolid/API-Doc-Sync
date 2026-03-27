@@ -3,6 +3,7 @@ import * as path from 'path';
 import { OpenAPIParser } from '../core/parser';
 import { DocGenerator } from '../core/generator';
 import { configManager, Config } from '../utils/config';
+import { VersionManager } from '../core/version';
 import { logger } from '../utils/logger';
 
 export async function generateCommand(options: {
@@ -11,6 +12,7 @@ export async function generateCommand(options: {
   format?: 'markdown' | 'html' | 'pdf';
   config?: string;
   language?: string;
+  noVersion?: boolean;
 }): Promise<void> {
   // Load config
   if (options.config) {
@@ -87,6 +89,23 @@ export async function generateCommand(options: {
 
     fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2), 'utf8');
     logger.debug(`Generation summary saved to ${summaryPath}`);
+
+    // Auto-save version if not disabled
+    if (!options.noVersion) {
+      try {
+        const versionManager = new VersionManager(path.join(path.dirname(config.output), 'versions'));
+        const parser = await OpenAPIParser.load(config.input);
+        const spec = parser.getSpec();
+
+        await versionManager.loadHistory();
+        await versionManager.createVersion(spec, config.output);
+        await versionManager.saveVersionSnapshot(spec, config.output, path.join(path.dirname(config.output), 'versions'));
+        await versionManager.saveHistory();
+        logger.success('Version snapshot saved');
+      } catch (versionError: any) {
+        logger.warn(`Failed to save version: ${versionError.message}`);
+      }
+    }
 
   } catch (error: any) {
     logger.error(`Failed to generate documentation: ${error.message}`);
