@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import chalk from 'chalk';
+import chalk from '../utils/chalk';
 import { VersionManager, ChangeSummary } from '../core/version';
 import { OpenAPIParser } from '../core/parser';
 import { DocGenerator } from '../core/generator';
