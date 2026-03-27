@@ -1,0 +1,75 @@
+# API Reference
+
+> **{{title}}** — Version {{version}}
+
+---
+
+{{#each paths}}
+## `{{@key}}`
+
+{{#each this}}
+### {{toUpperCase method}} {{../@key}}
+
+{{#if operation.summary}}
+> **{{operation.summary}}**
+{{/if}}
+
+{{#if operation.description}}
+
+{{operation.description}}
+
+{{/if}}
+
+{{#if operation.operationId}}
+**Operation ID:** `{{operation.operationId}}`
+
+{{/if}}
+
+{{#if operation.tags}}
+**Tags:** {{#each operation.tags}}`{{this}}` {{/each}}
+
+{{/if}}
+
+{{#if operation.parameters}}
+#### Parameters
+
+| Name | Located In | Type | Required | Description |
+|------|-----------|------|----------|-------------|
+{{#each operation.parameters}}
+| `{{name}}` | **{{in}}** | {{type}}{{#if schema.type}} ({{schema.type}}){{/if}} | {{#if required}}✅ Yes{{else}}❌ No{{/if}} | {{#if description}}{{description}}{{else}}-{{/if}} |
+{{/each}}
+
+{{/if}}
+
+{{#if operation.requestBody}}
+#### Request Body
+
+{{#if operation.requestBody.description}}
+{{operation.requestBody.description}}
+
+{{/if}}
+- **Required:** {{#if operation.requestBody.required}}Yes{{else}}No{{/if}}
+
+{{#each operation.requestBody.content}}
+- **Content-Type:** `{{@key}}`
+{{#if this.schema}}
+  - **Schema:** `{{this.schema.type}}{{#if this.schema.$ref}} {{this.schema.$ref}}{{/if}}`
+{{/if}}
+{{/each}}
+
+{{/if}}
+
+{{#if operation.responses}}
+#### Responses
+
+| Status Code | Description |
+|-------------|-------------|
+{{#each operation.responses}}
+| **{{@key}}** | {{description}} |
+{{/each}}
+
+{{/if}}
+
+---
+{{/each}}
+{{/each}}

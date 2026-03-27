@@ -46,6 +46,7 @@ program
   .option('-o, --output <dir>', 'Output directory')
   .option('-f, --format <format>', 'Output format (markdown, html, pdf)', 'markdown')
   .option('-c, --config <path>', 'Path to config file')
+  .option('-l, --language <lang>', 'Documentation language (en, zh)', 'en')
   .action(async (options) => {
     try {
       await generateCommand(options);

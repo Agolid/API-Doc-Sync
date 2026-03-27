@@ -5,6 +5,53 @@ import { marked } from 'marked';
 import { OpenAPIParser, OpenAPISpec } from './parser';
 import { logger } from '../utils/logger';
 
+// Register Handlebars helpers
+Handlebars.registerHelper('toUpperCase', (str: string) => str.toUpperCase());
+Handlebars.registerHelper('json', (obj: any) => JSON.stringify(obj, null, 2));
+Handlebars.registerHelper('contains', (arr: string[], item: string) => arr && arr.includes(item));
+
+// i18n labels
+const I18N: Record<string, Record<string, string>> = {
+  en: {
+    apiReference: 'API Reference',
+    dataSchemas: 'Data Schemas',
+    parameters: 'Parameters',
+    requestBody: 'Request Body',
+    responses: 'Responses',
+    properties: 'Properties',
+    required: 'Required',
+    example: 'Example',
+    requiredFields: 'Required fields',
+    operationId: 'Operation ID',
+    tags: 'Tags',
+    contact: 'Contact',
+    license: 'License',
+    servers: 'Servers',
+    overview: 'Overview',
+    documentation: 'Documentation',
+    partOf: 'Part of',
+  },
+  zh: {
+    apiReference: 'API 参考',
+    dataSchemas: '数据模型',
+    parameters: '参数',
+    requestBody: '请求体',
+    responses: '响应',
+    properties: '属性',
+    required: '必填',
+    example: '示例',
+    requiredFields: '必填字段',
+    operationId: '操作 ID',
+    tags: '标签',
+    contact: '联系方式',
+    license: '许可证',
+    servers: '服务器',
+    overview: '概述',
+    documentation: '文档',
+    partOf: '所属项目',
+  },
+};
+
 export interface GeneratorOptions {
   output: string;
   format: 'markdown' | 'html' | 'pdf';
@@ -15,10 +62,12 @@ export interface GeneratorOptions {
 export class DocGenerator {
   private parser: OpenAPIParser;
   private options: GeneratorOptions;
+  private i18n: Record<string, string>;
 
   constructor(parser: OpenAPIParser, options: GeneratorOptions) {
     this.parser = parser;
     this.options = options;
+    this.i18n = I18N[this.options.language || 'en'] || I18N.en;
   }
 
   async generate(): Promise<string[]> {
@@ -142,12 +191,15 @@ export class DocGenerator {
   }
 
   private renderTemplate(templateName: string, data: any): string {
+    // Inject i18n labels into all template data
+    const enrichedData = { ...data, i18n: this.i18n };
+
     // Try custom template first
     if (this.options.template) {
       const customTemplatePath = path.resolve(this.options.template, templateName);
       if (fs.existsSync(customTemplatePath)) {
         const template = fs.readFileSync(customTemplatePath, 'utf8');
-        return Handlebars.compile(template)(data);
+        return Handlebars.compile(template)(enrichedData);
       }
     }
 
@@ -156,11 +208,11 @@ export class DocGenerator {
 
     if (!fs.existsSync(builtInTemplatePath)) {
       // Fallback to inline template
-      return this.getInlineTemplate(templateName, data);
+      return this.getInlineTemplate(templateName, enrichedData);
     }
 
     const template = fs.readFileSync(builtInTemplatePath, 'utf8');
-    return Handlebars.compile(template)(data);
+    return Handlebars.compile(template)(enrichedData);
   }
 
   private getInlineTemplate(templateName: string, data: any): string {
@@ -180,6 +232,7 @@ export class DocGenerator {
   }
 
   private generateReadmeContent(data: any): string {
+    const t = data.i18n || I18N.en;
     let content = `# ${data.title}\n\n`;
     content += `**Version:** ${data.version}\n\n`;
 
@@ -188,20 +241,18 @@ export class DocGenerator {
     }
 
     if (data.servers && data.servers.length > 0) {
-      content += `## Servers\n\n`;
+      content += `## ${t.servers}\n\n`;
       for (const server of data.servers) {
         content += `- \`${server.url}\``;
-        if (server.description) {
-          content += ` - ${server.description}`;
-        }
+        if (server.description) content += ` - ${server.description}`;
         content += '\n';
       }
       content += '\n';
     }
 
-    content += `## Documentation\n\n`;
-    content += `- [API Reference](./API.md)\n`;
-    content += `- [Schemas](./Schemas.md)\n`;
+    content += `## ${t.documentation}\n\n`;
+    content += `- [${t.apiReference}](./API.md)\n`;
+    content += `- [${t.dataSchemas}](./Schemas.md)\n`;
     content += `- [Changelog](./CHANGELOG.md)\n`;
 
     content += `\n---\n\n`;
@@ -211,7 +262,8 @@ export class DocGenerator {
   }
 
   private generateApiContent(data: any): string {
-    let content = `# API Reference\n\n`;
+    const t = data.i18n || I18N.en;
+    let content = `# ${t.apiReference}\n\n`;
 
     for (const [path, operations] of Object.entries(data.paths) as [string, any][]) {
       content += `## ${path}\n\n`;
@@ -220,106 +272,76 @@ export class DocGenerator {
         const methodEmoji = this.getMethodEmoji(method);
         content += `### ${methodEmoji} ${method.toUpperCase()}\n\n`;
 
-        if (operation.summary) {
-          content += `${operation.summary}\n\n`;
-        }
-
-        if (operation.description) {
-          content += `${operation.description}\n\n`;
-        }
-
-        if (operation.operationId) {
-          content += `**Operation ID:** \`${operation.operationId}\`\n\n`;
-        }
+        if (operation.summary) content += `${operation.summary}\n\n`;
+        if (operation.description) content += `${operation.description}\n\n`;
+        if (operation.operationId) content += `**${t.operationId}:** \`${operation.operationId}\`\n\n`;
 
         if (operation.parameters && operation.parameters.length > 0) {
-          content += `#### Parameters\n\n`;
-          content += `| Name | In | Type | Required | Description |\n`;
+          content += `#### ${t.parameters}\n\n`;
+          content += `| Name | In | Type | ${t.required} | Description |\n`;
           content += `|------|-----|------|----------|-------------|\n`;
-
           for (const param of operation.parameters) {
             const type = param.type || param.schema?.type || 'unknown';
-            const required = param.required ? 'Yes' : 'No';
-            const description = param.description || '-';
-            content += `| ${param.name} | ${param.in} | ${type} | ${required} | ${description} |\n`;
+            content += `| ${param.name} | ${param.in} | ${type} | ${param.required ? 'Yes' : 'No'} | ${param.description || '-'} |\n`;
           }
           content += '\n';
         }
 
         if (operation.requestBody) {
-          content += `#### Request Body\n\n`;
-          if (operation.requestBody.description) {
-            content += `${operation.requestBody.description}\n\n`;
-          }
-          content += `**Required:** ${operation.requestBody.required ? 'Yes' : 'No'}\n\n`;
+          content += `#### ${t.requestBody}\n\n`;
+          if (operation.requestBody.description) content += `${operation.requestBody.description}\n\n`;
+          content += `**${t.required}:** ${operation.requestBody.required ? 'Yes' : 'No'}\n\n`;
         }
 
         if (operation.responses) {
-          content += `#### Responses\n\n`;
+          content += `#### ${t.responses}\n\n`;
           for (const [code, response] of Object.entries(operation.responses) as [string, any]) {
             content += `**${code}** - ${response.description}\n\n`;
           }
         }
-
         content += `---\n\n`;
       }
     }
-
     return content;
   }
 
   private generateTagContent(data: any): string {
+    const t = data.i18n || I18N.en;
     let content = `# ${data.tagName}\n\n`;
+    content += `> ${t.partOf} **${data.title}**\n\n`;
 
     for (const { path, method, operation } of data.operations) {
       const methodEmoji = this.getMethodEmoji(method);
       content += `## ${methodEmoji} ${method.toUpperCase()} ${path}\n\n`;
-
-      if (operation.summary) {
-        content += `${operation.summary}\n\n`;
-      }
-
-      if (operation.description) {
-        content += `${operation.description}\n\n`;
-      }
-
+      if (operation.summary) content += `${operation.summary}\n\n`;
+      if (operation.description) content += `${operation.description}\n\n`;
       content += `---\n\n`;
     }
-
     return content;
   }
 
   private generateSchemasContent(data: any): string {
-    let content = `# Data Schemas\n\n`;
+    const t = data.i18n || I18N.en;
+    let content = `# ${t.dataSchemas}\n\n`;
 
     for (const [name, schema] of Object.entries(data.schemas) as [string, any]) {
       content += `## ${name}\n\n`;
-
-      if (schema.description) {
-        content += `${schema.description}\n\n`;
-      }
-
-      if (schema.type) {
-        content += `**Type:** ${schema.type}\n\n`;
-      }
+      if (schema.description) content += `${schema.description}\n\n`;
+      if (schema.type) content += `**Type:** ${schema.type}\n\n`;
 
       if (schema.properties) {
-        content += `### Properties\n\n`;
-        content += `| Name | Type | Required | Description |\n`;
+        content += `### ${t.properties}\n\n`;
+        content += `| Name | Type | ${t.required} | Description |\n`;
         content += `|------|------|----------|-------------|\n`;
-
         for (const [propName, propSchema] of Object.entries(schema.properties) as [string, any]) {
           const type = propSchema.type || 'unknown';
           const required = schema.required?.includes(propName) ? 'Yes' : 'No';
-          const description = propSchema.description || '-';
-          content += `| ${propName} | ${type} | ${required} | ${description} |\n`;
+          content += `| ${propName} | ${type} | ${required} | ${propSchema.description || '-'} |\n`;
         }
         content += '\n';
       }
-
       content += `---\n\n`;
     }
-
     return content;
   }
 

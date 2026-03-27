@@ -39,3 +39,4 @@ temp/
 .env
 .env.local
 .env.*.local
+test-output-zh/

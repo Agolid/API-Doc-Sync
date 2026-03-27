@@ -10,6 +10,7 @@ export async function generateCommand(options: {
   output?: string;
   format?: 'markdown' | 'html' | 'pdf';
   config?: string;
+  language?: string;
 }): Promise<void> {
   // Load config
   if (options.config) {
@@ -27,6 +28,9 @@ export async function generateCommand(options: {
   }
   if (options.format) {
     configManager.set({ format: options.format });
+  }
+  if (options.language) {
+    configManager.set({ language: options.language as 'en' | 'zh' });
   }
 
   // Validate config
