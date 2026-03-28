@@ -51,7 +51,7 @@ Handlebars.registerHelper('cleanHtml', (str: string) => {
       .replace(/\n{3,}/g, '\n\n')  // collapse multiple newlines
       .trim()
       // Fix JSON snippets embedded in descriptions (missing commas)
-      .replace(/(\})\n(\s*)(\"[a-zA-Z])/g, '$1,$2$3')
+      .replace(/(\})\n(\s*)("[a-zA-Z])/g, '$1,$2$3')
   );
 });
 
@@ -924,8 +924,8 @@ export class DocGenerator {
       .trim();
 
     // Fix JSON snippets embedded in descriptions (e.g., missing commas before next key)
-    result = result.replace(/(\})\n(\s*)(\"[a-zA-Z])/g, '$1,$2$3');
-    result = result.replace(/(\})\n(\s+)(\"[a-zA-Z])/g, '$1,\n$2$3');
+    result = result.replace(/(\})\n(\s*)("[a-zA-Z])/g, '$1,$2$3');
+    result = result.replace(/(\})\n(\s+)("[a-zA-Z])/g, '$1,\n$2$3');
     return result;
   }
 }
