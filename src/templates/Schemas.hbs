@@ -12,10 +12,7 @@
 
 {{/if}}
 
-{{#if this.type}}
-**Type:** `{{this.type}}`
-
-{{/if}}
+**Type:** `{{schemaType this}}`
 
 {{#if this.properties}}
 ### Properties
@@ -23,7 +20,7 @@
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 {{#each this.properties}}
-| `{{@key}}` | {{#if this.type}}`{{this.type}}`{{else}}{{#if this.$ref}}[{{this.$ref}}]{{else}}object{{/if}}{{/if}}{{#if this.format}} ({{this.format}}){{/if}}{{#if this.items}} [{{#if this.items.type}}{{this.items.type}}{{else}}{{#if this.items.$ref}}{{this.items.$ref}}{{/if}}{{/if}}]{{/if}} | {{#if ../required}}{{#if (contains ../required @key)}}✅ Yes{{else}}❌ No{{/if}}{{else}}❌ No{{/if}} | {{#if this.description}}{{this.description}}{{else}}-{{/if}} |
+| `{{@key}}` | {{schemaType this}}{{#if (schemaFormat this)}} ({{schemaFormat this}}){{/if}}{{#if this.items}}[{{schemaType this.items}}{{#if this.items.items}}[]{{/if}}]{{/if}} | {{#if ../required}}{{#if (contains ../required @key)}}✅ Yes{{else}}❌ No{{/if}}{{else}}❌ No{{/if}} | {{#if this.description}}{{escapeHtml this.description}}{{else}}-{{/if}} |
 {{/each}}
 
 {{/if}}

@@ -13,7 +13,7 @@
 
 {{#if operation.description}}
 
-{{operation.description}}
+{{{cleanHtml operation.description}}}
 
 {{/if}}
 
@@ -28,7 +28,7 @@
 | Name | Located In | Type | Required | Description |
 |------|-----------|------|----------|-------------|
 {{#each operation.parameters}}
-| `{{name}}` | **{{in}}** | {{type}}{{#if schema.type}} ({{schema.type}}){{/if}} | {{#if required}}✅ Yes{{else}}❌ No{{/if}} | {{#if description}}{{description}}{{else}}-{{/if}} |
+| `{{name}}` | **{{in}}** | {{schemaType schema}}{{#if (schemaFormat schema)}} ({{schemaFormat schema}}){{/if}}{{#if items}}[]{{/if}} | {{#if required}}✅ Yes{{else}}❌ No{{/if}} | {{#if description}}{{{cleanHtml description}}}{{else}}-{{/if}} |
 {{/each}}
 
 {{/if}}
@@ -37,10 +37,33 @@
 ### Request Body
 
 {{#if operation.requestBody.description}}
-{{operation.requestBody.description}}
+{{{cleanHtml operation.requestBody.description}}}
 
 {{/if}}
 - **Required:** {{#if operation.requestBody.required}}Yes{{else}}No{{/if}}
+
+{{#each operation.requestBody.content}}
+- **Content-Type:** `{{@key}}`
+{{#if this.schema}}
+{{#if this.schema.properties}}
+  | Name | Type | Required | Description |
+  |------|------|----------|-------------|
+  {{#each this.schema.properties}}
+  | `{{@key}}` | {{schemaType this}}{{#if (schemaFormat this)}} ({{schemaFormat this}}){{/if}}{{#if this.items}}[{{schemaType this.items}}]{{/if}} | {{#if (contains ../this.schema.required @key)}}✅ Yes{{else}}❌ No{{/if}} | {{#if this.description}}{{{cleanHtml this.description}}}{{else}}-{{/if}} |
+  {{/each}}
+{{else if this.schema.items}}{{#if this.schema.items.properties}}
+  **Array of:** {{schemaType this.schema.items}}
+
+  | Name | Type | Required | Description |
+  |------|------|----------|-------------|
+  {{#each this.schema.items.properties}}
+  | `{{@key}}` | {{schemaType this}}{{#if (schemaFormat this)}} ({{schemaFormat this}}){{/if}} | {{#if (contains ../../this.schema.items.required @key)}}✅ Yes{{else}}❌ No{{/if}} | {{#if this.description}}{{{cleanHtml this.description}}}{{else}}-{{/if}} |
+  {{/each}}
+{{/if}}{{else}}
+  - **Type:** `{{schemaType this.schema}}`
+{{/if}}
+{{/if}}
+{{/each}}
 
 {{/if}}
 
@@ -50,10 +73,28 @@
 | Status Code | Description |
 |-------------|-------------|
 {{#each operation.responses}}
-| **{{@key}}** | {{description}} |
+| **{{@key}}** | {{{cleanHtml description}}} |
+{{/each}}
+
+{{#each operation.responses}}
+{{#if this.content}}
+{{#each this.content}}
+{{#if this.schema}}
+{{#if this.schema.properties}}
+**Response Body** ({{@key}}):
+
+| Name | Type | Description |
+|------|------|-------------|
+{{#each this.schema.properties}}
+| `{{@key}}` | {{schemaType this}}{{#if (schemaFormat this)}} ({{schemaFormat this}}){{/if}}{{#if this.items}}[{{schemaType this.items}}]{{/if}} | {{#if this.description}}{{{cleanHtml this.description}}}{{else}}-{{/if}} |
 {{/each}}
 
 {{/if}}
+{{/if}}
+{{/each}}
+{{/if}}
+{{/each}}
 
+{{/if}}
 ---
 {{/each}}

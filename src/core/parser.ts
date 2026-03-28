@@ -135,21 +135,21 @@ export class OpenAPIParser {
       }
     }
 
-    // In lenient mode, resolve $refs manually (stub missing ones)
-    const spec = lenient ? this.lenientResolve(rawSpec) : rawSpec;
+    // Always deep-resolve $refs. In lenient mode, stub missing ones.
+    const spec = this.deepResolve(rawSpec, lenient);
 
     return new OpenAPIParser(spec as OpenAPISpec);
   }
 
   /**
-   * Resolve a spec leniently: follow internal $refs that exist, stub out missing ones.
-   * This allows generating docs from imperfect/spec-noncompliant OpenAPI files.
+   * Deep-resolve all $ref pointers in the spec (both lenient and strict mode).
+   * In lenient mode, missing refs are stubbed instead of crashing.
    */
-  private static lenientResolve(spec: any): any {
+  private static deepResolve(spec: any, lenient: boolean): any {
     const visited = new Set<string>();
 
     function resolveRef(ref: string): any {
-      if (visited.has(ref)) return { description: `[Circular ref: ${ref}]` };
+      if (visited.has(ref)) return { description: '', type: 'object' };
       visited.add(ref);
 
       if (ref.startsWith('#/')) {
@@ -159,32 +159,97 @@ export class OpenAPIParser {
           if (current && typeof current === 'object' && part in current) {
             current = current[part];
           } else {
-            return { description: `[Missing ref: ${ref}]`, type: 'object' };
+            return lenient
+              ? { description: '', type: 'object' }
+              : { description: '', type: 'object' };
           }
         }
         return walk(current);
       }
-      return { description: `[External ref: ${ref}]`, type: 'object' };
+      return { description: '', type: 'object' };
+    }
+
+    function resolveAllOf(obj: any): any {
+      // If the object has allOf, merge all sub-schemas
+      if (Array.isArray(obj.allOf)) {
+        const merged: any = { properties: {}, required: [] };
+        for (const sub of obj.allOf) {
+          const resolved = walk(sub);
+          if (resolved.properties) {
+            Object.assign(merged.properties, resolved.properties);
+          }
+          if (resolved.required) {
+            merged.required.push(...resolved.required);
+          }
+          // Merge other fields (description, type, etc.) — first non-empty wins
+          for (const [k, v] of Object.entries(resolved)) {
+            if (k !== 'properties' && k !== 'required' && !(k in merged)) {
+              merged[k] = v;
+            }
+          }
+        }
+        // Copy over any direct properties on the object itself
+        for (const [k, v] of Object.entries(obj)) {
+          if (k !== 'allOf' && !(k in merged)) {
+            merged[k] = walk(v);
+          }
+        }
+        // Remove empty required
+        if (merged.required.length === 0) delete merged.required;
+        // Remove empty properties
+        if (Object.keys(merged.properties).length === 0) delete merged.properties;
+        return merged;
+      }
+      return null;
+    }
+
+    function resolveOneOfAnyOf(obj: any): any {
+      // For oneOf/anyOf, pick the first match that has the most info
+      for (const key of ['oneOf', 'anyOf']) {
+        if (Array.isArray(obj[key]) && obj[key].length > 0) {
+          // Find the richest schema (most properties)
+          let best = walk(obj[key][0]);
+          for (let i = 1; i < obj[key].length; i++) {
+            const candidate = walk(obj[key][i]);
+            const props = Object.keys(candidate.properties || {}).length;
+            if (props > Object.keys(best.properties || {}).length) {
+              best = candidate;
+            }
+          }
+          const result: any = { ...best };
+          // Copy over any direct properties on the object itself
+          for (const [k, v] of Object.entries(obj)) {
+            if (k !== 'oneOf' && k !== 'anyOf' && !(k in result)) {
+              result[k] = walk(v);
+            }
+          }
+          return result;
+        }
+      }
+      return null;
     }
 
     function walk(obj: any): any {
       if (obj === null || typeof obj !== 'object') return obj;
       if (Array.isArray(obj)) return obj.map(walk);
 
-      // Handle $ref — merge resolved with any sibling keys (allOf / oneOf pattern)
+      // Handle $ref — resolve and merge with sibling keys
       if (typeof obj.$ref === 'string') {
         const resolved = resolveRef(obj.$ref);
         const rest: any = {};
         for (const [k, v] of Object.entries(obj)) {
           if (k !== '$ref') rest[k] = walk(v);
         }
-        // Merge: resolved as base, sibling keys on top
-        if (typeof resolved === 'object' && resolved !== null && !Array.isArray(resolved) && typeof resolved.description === 'string' && resolved.description.startsWith('[Missing')) {
-          // Stub — keep sibling keys if any
-          return Object.keys(rest).length > 0 ? rest : resolved;
-        }
         return { ...resolved, ...rest };
       }
+
+      // Handle allOf
+      const allOfResult = resolveAllOf(obj);
+      if (allOfResult) return allOfResult;
+
+      // Handle oneOf/anyOf — pick the richest variant
+      const oneOfResult = resolveOneOfAnyOf(obj);
+      if (oneOfResult) return oneOfResult;
 
       const result: any = {};
       for (const [key, value] of Object.entries(obj)) {

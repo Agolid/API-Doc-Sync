@@ -11,6 +11,46 @@ Handlebars.registerHelper('json', (obj: any) => JSON.stringify(obj, null, 2));
 Handlebars.registerHelper('contains', (arr: string[], item: string) => {
   return arr && arr.includes(item);
 });
+Handlebars.registerHelper('schemaType', (schema: any) => {
+  if (!schema) return 'object';
+  if (schema.type) return schema.type;
+  if (schema.properties) return 'object';
+  if (schema.items) return 'array';
+  return 'object';
+});
+
+Handlebars.registerHelper('schemaFormat', (schema: any) => {
+  if (!schema || !schema.format) return '';
+  return schema.format;
+});
+
+Handlebars.registerHelper('escapeHtml', (str: string) => {
+  if (!str) return str;
+  return str
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&').replace(/&quot;/g, '"')
+    .replace(/&#x27;/g, "'").replace(/&#39;/g, "'");
+});
+
+Handlebars.registerHelper('cleanHtml', (str: string) => {
+  if (!str) return str;
+  // Handlebars triple-stache passes raw value; convert HTML to markdown-friendly plain text
+  return new Handlebars.SafeString(
+    str
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/?\w+(?:\s[^>]*)?>/g, '')   // strip remaining HTML tags
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#x27;/g, "'")
+      .replace(/&#39;/g, "'")
+      .replace(/&nbsp;/g, ' ')
+      .replace(/\n{3,}/g, '\n\n')  // collapse multiple newlines
+      .trim()
+  );
+});
+
 Handlebars.registerHelper('slugify', (str: string) => {
   return str.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, '').replace(/--+/g, '-').replace(/^-+/, '').replace(/-+$/, '');
 });
@@ -578,9 +618,53 @@ export class DocGenerator {
 
     for (const { path, method, operation } of data.operations) {
       const methodEmoji = this.getMethodEmoji(method);
-      content += `## ${methodEmoji} ${method.toUpperCase()} ${path}\n\n`;
-      if (operation.summary) content += `${operation.summary}\n\n`;
-      if (operation.description) content += `${operation.description}\n\n`;
+      content += `## ${methodEmoji} \`${method.toUpperCase()}\` ${path}\n\n`;
+      if (operation.summary) content += `> ${operation.summary}\n\n`;
+      if (operation.description) content += `${this.unescapeHtml(operation.description)}\n\n`;
+      if (operation.operationId) content += `**Operation ID:** \`${operation.operationId}\`\n\n`;
+
+      if (operation.parameters && operation.parameters.length > 0) {
+        content += `### ${t.parameters}\n\n`;
+        content += `| Name | In | Type | ${t.required} | Description |\n`;
+        content += `|------|-----|------|----------|-------------|\n`;
+        for (const param of operation.parameters) {
+          const type = param.schema?.type || param.type || 'unknown';
+          content += `| \`${param.name}\` | **${param.in}** | ${type} | ${param.required ? '✅ Yes' : '❌ No'} | ${param.description || '-'} |\n`;
+        }
+        content += '\n';
+      }
+
+      if (operation.requestBody) {
+        content += `### ${t.requestBody}\n\n`;
+        if (operation.requestBody.description) content += `${operation.requestBody.description}\n\n`;
+        content += `**Required:** ${operation.requestBody.required ? 'Yes' : 'No'}\n\n`;
+
+        for (const [ct, mediaType] of Object.entries(operation.requestBody.content || {})) {
+          content += `- **Content-Type:** \`${ct}\`\n`;
+          const schema = (mediaType as any).schema;
+          if (schema?.properties) {
+            content += `  | Name | Type | ${t.required} | Description |\n`;
+            content += `  |------|------|----------|-------------|\n`;
+            for (const [name, prop] of Object.entries(schema.properties)) {
+              const p = prop as any;
+              const type = p.type || 'object';
+              const required = schema.required?.includes(name) ? '✅ Yes' : '❌ No';
+              content += `  | \`${name}\` | ${type} | ${required} | ${p.description || '-'} |\n`;
+            }
+          }
+          content += '\n';
+        }
+      }
+
+      if (operation.responses) {
+        content += `### ${t.responses}\n\n`;
+        content += `| Status Code | Description |\n`;
+        content += `|-------------|-------------|\n`;
+        for (const [code, resp] of Object.entries(operation.responses)) {
+          content += `| **${code}** | ${(resp as any).description || '-'} |\n`;
+        }
+        content += '\n';
+      }
       content += `---\n\n`;
     }
     return content;
@@ -630,5 +714,12 @@ export class DocGenerator {
       .replace(/--+/g, '-')
       .replace(/^-+/, '')
       .replace(/-+$/, '');
+  }
+
+  private unescapeHtml(str: string): string {
+    return str
+      .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+      .replace(/&amp;/g, '&').replace(/&quot;/g, '"')
+      .replace(/&#x27;/g, "'").replace(/&#39;/g, "'");
   }
 }
