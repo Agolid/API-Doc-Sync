@@ -49,16 +49,18 @@
   | Name | Type | Required | Description |
   |------|------|----------|-------------|
   {{#each this.schema.properties}}
-  | `{{@key}}` | {{schemaType this}}{{#if (schemaFormat this)}} ({{schemaFormat this}}){{/if}}{{#if this.items}}[{{schemaType this.items}}]{{/if}} | {{#if (contains ../this.schema.required @key)}}✅ Yes{{else}}❌ No{{/if}} | {{#if this.description}}{{{cleanHtml this.description}}}{{else}}-{{/if}} |
+  | `{{@key}}` | {{schemaType this}}{{#if (schemaFormat this)}} ({{schemaFormat this}}){{/if}}{{#if this.items}}[{{schemaType this.items}}]{{/if}}{{enumString this.enum}} | {{#if (contains ../this.schema.required @key)}}✅ Yes{{else}}❌ No{{/if}} | {{#if this.description}}{{{cleanHtml this.description}}}{{else}}-{{/if}} |
   {{/each}}
+  {{renderNested this.schema.properties this.schema.required indent=0}}
 {{else if this.schema.items}}{{#if this.schema.items.properties}}
   **Array of:** {{schemaType this.schema.items}}
 
   | Name | Type | Required | Description |
   |------|------|----------|-------------|
   {{#each this.schema.items.properties}}
-  | `{{@key}}` | {{schemaType this}}{{#if (schemaFormat this)}} ({{schemaFormat this}}){{/if}} | {{#if (contains ../../this.schema.items.required @key)}}✅ Yes{{else}}❌ No{{/if}} | {{#if this.description}}{{{cleanHtml this.description}}}{{else}}-{{/if}} |
+  | `{{@key}}` | {{schemaType this}}{{#if (schemaFormat this)}} ({{schemaFormat this}}){{/if}}{{enumString this.enum}} | {{#if (contains ../../this.schema.items.required @key)}}✅ Yes{{else}}❌ No{{/if}} | {{#if this.description}}{{{cleanHtml this.description}}}{{else}}-{{/if}} |
   {{/each}}
+  {{renderNested this.schema.items.properties this.schema.items.required indent=0}}
 {{/if}}{{else}}
   - **Type:** `{{schemaType this.schema}}`
 {{/if}}
@@ -94,8 +96,9 @@
 | Name | Type | Description |
 |------|------|-------------|
 {{#each this.schema.properties}}
-| `{{@key}}` | {{schemaType this}}{{#if (schemaFormat this)}} ({{schemaFormat this}}){{/if}}{{#if this.items}}[{{schemaType this.items}}]{{/if}} | {{#if this.description}}{{{cleanHtml this.description}}}{{else}}-{{/if}} |
+| `{{@key}}` | {{schemaType this}}{{#if (schemaFormat this)}} ({{schemaFormat this}}){{/if}}{{#if this.items}}[{{schemaType this.items}}]{{/if}}{{enumString this.enum}} | {{#if this.description}}{{{cleanHtml this.description}}}{{else}}-{{/if}} |
 {{/each}}
+{{renderNested this.schema.properties this.schema.required indent=0}}
 
 {{/if}}
 {{/if}}

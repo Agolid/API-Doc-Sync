@@ -51,6 +51,33 @@ Handlebars.registerHelper('cleanHtml', (str: string) => {
   );
 });
 
+Handlebars.registerHelper('enumString', (values: any[]) => {
+  if (!values || !Array.isArray(values) || values.length === 0) return '';
+  const strs = values.map(v => `\`${v}\``).join(' \\| ');
+  return new Handlebars.SafeString(` = ${strs}`);
+});
+
+Handlebars.registerHelper('renderNested', (properties: any, required: any, hash: any) => {
+  if (!properties || typeof properties !== 'object') return '';
+  const indent = (hash.indent || 0);
+  const pad = '  '.repeat(indent);
+  let content = '';
+  for (const [name, prop] of Object.entries(properties as Record<string, any>)) {
+    const nested = prop.properties || prop.items?.properties;
+    if (!nested || Object.keys(nested).length === 0) continue;
+    const desc = prop.description ? ` — ${prop.description}` : '';
+    const req = (prop.required || (required || []).includes(name)) ? '✅' : '❌';
+    if (prop.properties) {
+      content += `${pad}**\`${name}\`** ${req}${desc}\n\n`;
+      content += Handlebars.helpers.renderNested(nested, prop.required, { indent: indent + 1 });
+    } else if (prop.items?.properties) {
+      content += `${pad}**\`${name}\`** — Array of \`${prop.items.type || 'object'}\`${desc}\n\n`;
+      content += Handlebars.helpers.renderNested(prop.items.properties, prop.items.required, { indent: indent + 1 });
+    }
+  }
+  return new Handlebars.SafeString(content);
+});
+
 Handlebars.registerHelper('slugify', (str: string) => {
   return str.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, '').replace(/--+/g, '-').replace(/^-+/, '').replace(/-+$/, '');
 });
@@ -675,11 +702,18 @@ export class DocGenerator {
       const schema = (mediaType as any).schema;
       if (schema?.properties) {
         content += this.renderSchemaProperties(schema.properties, schema.required, 2);
+        content += this.renderNestedProperties(schema.properties, schema.required, 2);
       } else if (schema?.items?.properties) {
         content += `  **Array of:** ${this.inferSchemaType(schema.items)}\n\n`;
         content += this.renderSchemaProperties(schema.items.properties, schema.items.required, 2);
+        content += this.renderNestedProperties(schema.items.properties, schema.items.required, 2);
       } else {
         content += `  - **Type:** \`${this.inferSchemaType(schema)}\`\n`;
+      }
+
+      // Show example if available
+      if ((mediaType as any).example) {
+        content += `  **Example:**\n\n\`\`\`json\n${JSON.stringify((mediaType as any).example, null, 2)}\n\`\`\`\n\n`;
       }
     }
     return content + '\n';
@@ -701,6 +735,7 @@ export class DocGenerator {
         if (schema?.properties) {
           content += `**Response Body** (\`${ct}\`):\n\n`;
           content += this.renderSchemaProperties(schema.properties, schema.required, 0);
+          content += this.renderNestedProperties(schema.properties, schema.required, 0);
           content += '\n';
         }
       }
@@ -710,22 +745,50 @@ export class DocGenerator {
 
   private renderSchemaProperties(properties: Record<string, any>, requiredFields: string[] | undefined, indent: number): string {
     const pad = '  '.repeat(indent);
-    const typeCol = 'Type';
     const reqCol = indent === 0 ? 'Description' : '';
     let content = `${pad}| Name | Type | ${reqCol} |\n`;
     content += `${pad}|------|------|${reqCol ? '-------------|' : ''}\n`;
     for (const [name, prop] of Object.entries(properties)) {
       const type = this.inferSchemaType(prop);
-      const items = prop.items ? `[${this.inferSchemaType(prop.items)}]` : '';
+      const items = prop.items ? `[${this.inferSchemaType(prop.items)}${prop.items.properties ? ' (see below)' : ''}]` : '';
       const format = prop.format ? ` (${prop.format})` : '';
+      const enumVal = prop.enum ? ` = ${prop.enum.map((v: any) => `\`${v}\``).join(' \\| ')}` : '';
       const required = requiredFields?.includes(name) ? '✅ Yes' : '❌ No';
+      const desc = prop.description ? this.cleanHtml(prop.description) : '-';
       if (indent === 0) {
-        content += `${pad}| \`${name}\` | ${type}${format}${items} | ${this.cleanHtml(prop.description || '-')} |\n`;
+        content += `${pad}| \`${name}\` | ${type}${format}${items}${enumVal} | ${desc} |\n`;
       } else {
-        content += `${pad}| \`${name}\` | ${type}${format}${items} | ${required} | ${this.cleanHtml(prop.description || '-')} |\n`;
+        content += `${pad}| \`${name}\` | ${type}${format}${items}${enumVal} | ${required} | ${desc} |\n`;
       }
     }
     return content + '\n';
+  }
+
+  private renderNestedProperties(properties: Record<string, any>, requiredFields: string[] | undefined, indent: number): string {
+    let content = '';
+    for (const [name, prop] of Object.entries(properties)) {
+      // Recurse into nested objects
+      if (prop.properties && Object.keys(prop.properties).length > 0) {
+        const type = this.inferSchemaType(prop);
+        const enumVal = prop.enum ? ` (${prop.enum.map((v: any) => `\`${v}\``).join(' | ')})` : '';
+        const required = requiredFields?.includes(name) ? '✅' : '❌';
+        const desc = prop.description ? this.cleanHtml(prop.description) : '';
+        const pad = '  '.repeat(indent);
+        content += `${pad}**\`${name}\`**${enumVal} ${required} — ${desc}\n\n`;
+        content += this.renderSchemaProperties(prop.properties, prop.required, indent + 1);
+        content += this.renderNestedProperties(prop.properties, prop.required, indent + 1);
+      }
+      // Recurse into array of objects
+      if (prop.items?.properties && Object.keys(prop.items.properties).length > 0) {
+        const itemType = this.inferSchemaType(prop.items);
+        const desc = prop.description ? this.cleanHtml(prop.description) : '';
+        const pad = '  '.repeat(indent);
+        content += `${pad}**\`${name}\`** — Array of \`${itemType}\`${desc ? ': ' + desc : ''}\n\n`;
+        content += this.renderSchemaProperties(prop.items.properties, prop.items.required, indent + 1);
+        content += this.renderNestedProperties(prop.items.properties, prop.items.required, indent + 1);
+      }
+    }
+    return content;
   }
 
   private inferSchemaType(schema: any): string {
@@ -760,6 +823,7 @@ export class DocGenerator {
       if (schema.properties) {
         content += `### ${t.properties}\n\n`;
         content += this.renderSchemaProperties(schema.properties, schema.required, 0);
+        content += this.renderNestedProperties(schema.properties, schema.required, 0);
       }
 
       if (schema.required && schema.required.length > 0) {
