@@ -19,6 +19,9 @@
 - [Servers](#servers)
 {{/if}}
 - [Documentation](#documentation)
+{{#if securitySchemes}}
+- [Authentication](#authentication)
+{{/if}}
 {{#if contact}}
 - [Contact](#contact)
 {{/if}}
@@ -51,6 +54,29 @@ API documentation for **{{title}}**.
 | [📘 API Reference](./API.md) | All API endpoints and operations |
 | [🗂️ Data Schemas](./Schemas.md) | Request/response schema definitions |
 | [📝 Changelog](./CHANGELOG.md) | Version history and changes |
+
+{{#if securitySchemes}}
+## Authentication
+
+{{#each securitySchemes}}
+### {{@key}}
+
+{{#if (eq this.type 'http')}}
+- **Type:** HTTP Authentication
+- **Scheme:** `{{this.scheme}}`{{#if this.bearerFormat}} ({{this.bearerFormat}}){{/if}}
+{{else if (eq this.type 'apiKey')}}
+- **Type:** API Key
+- **Location:** {{this.in}} (`{{this.name}}`)
+{{else if (eq this.type 'oauth2')}}
+- **Type:** OAuth 2.0
+- **Flows:** {{#each this.flows}}{{@key}}{{#unless @last}}, {{/unless}}{{/each}}
+{{else if (eq this.type 'openIdConnect')}}
+- **Type:** OpenID Connect
+- **Connect URL:** {{this.openIdConnectUrl}}
+{{/if}}
+
+{{/each}}
+{{/if}}
 
 {{#if contact}}
 ## Contact
