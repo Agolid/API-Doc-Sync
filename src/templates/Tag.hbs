@@ -83,6 +83,14 @@
 {{#if this.schema.properties}}
 **Response Body** ({{@key}}):
 
+{{#if this.schema.example}}
+**Example:**
+
+```json
+{{{json this.schema.example}}}
+```
+
+{{/if}}
 | Name | Type | Description |
 |------|------|-------------|
 {{#each this.schema.properties}}

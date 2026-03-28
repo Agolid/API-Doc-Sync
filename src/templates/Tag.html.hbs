@@ -29,6 +29,8 @@ code{background:#edf2f7;padding:2px 6px;border-radius:4px;font-size:.88em;color:
 hr{border:none;border-top:1px solid #edf2f7;margin:20px 0}
 .footer{text-align:center;padding:30px;color:#a0aec0;font-size:.85em}
 a{color:#667eea}
+.schema-table{margin-left:16px}
+.section-title{font-size:.95em;color:#2d3748;margin:16px 0 8px;font-weight:600}
 @media(max-width:768px){.container{flex-direction:column}.sidebar{width:100%}}
 </style>
 </head>
@@ -47,26 +49,62 @@ a{color:#667eea}
         <code>{{path}}</code>
       </div>
       {{#if operation.summary}}<div class="op-summary">{{operation.summary}}</div>{{/if}}
-      {{#if operation.description}}<p>{{operation.description}}</p>{{/if}}
+      {{#if operation.description}}<p>{{{cleanHtml operation.description}}}</p>{{/if}}
       {{#if operation.operationId}}<p style="font-size:.85em;color:#718096">{{i18n.operationId}}: <code>{{operation.operationId}}</code></p>{{/if}}
 
       {{#if operation.parameters}}
-      <h4>{{i18n.parameters}}</h4>
+      <div class="section-title">{{i18n.parameters}}</div>
       <table>
         <tr><th>Name</th><th>In</th><th>Type</th><th>{{i18n.required}}</th><th>Description</th></tr>
 {{#each operation.parameters}}
-        <tr><td><code>{{name}}</code></td><td>{{in}}</td><td>{{type}}</td><td>{{#if required}}✅{{else}}❌{{/if}}</td><td>{{#if description}}{{description}}{{else}}-{{/if}}</td></tr>
+        <tr><td><code>{{name}}</code></td><td>{{in}}</td><td>{{schemaType schema}}{{#if (schemaFormat schema)}} ({{schemaFormat schema}}){{/if}}{{#if items}}[]{{/if}}</td><td>{{#if required}}✅{{else}}❌{{/if}}</td><td>{{{cleanHtml description}}}</td></tr>
 {{/each}}
       </table>
       {{/if}}
 
-      {{#if operation.responses}}
-      <h4>{{i18n.responses}}</h4>
-      <table><tr><th>Status</th><th>Description</th></tr>
-{{#each operation.responses}}
-        <tr><td><code>{{@key}}</code></td><td>{{description}}</td></tr>
+      {{#if operation.requestBody}}
+      <div class="section-title">{{i18n.requestBody}}</div>
+      {{#if operation.requestBody.description}}<p>{{{cleanHtml operation.requestBody.description}}}</p>{{/if}}
+      <p><strong>Required:</strong> {{#if operation.requestBody.required}}Yes{{else}}No{{/if}}</p>
+{{#each operation.requestBody.content}}
+      <p><strong>Content-Type:</strong> <code>{{@key}}</code></p>
+      {{#if this.schema}}
+      {{#if this.schema.properties}}
+      <table class="schema-table">
+        <tr><th>Name</th><th>Type</th><th>Required</th><th>Description</th></tr>
+{{#each this.schema.properties}}
+        <tr><td><code>{{@key}}</code></td><td>{{schemaType this}}{{#if (schemaFormat this)}} ({{schemaFormat this}}){{/if}}{{#if this.items}}[{{schemaType this.items}}]{{/if}}</td><td>{{#if (contains ../this.schema.required @key)}}✅{{else}}❌{{/if}}</td><td>{{{cleanHtml this.description}}}</td></tr>
 {{/each}}
       </table>
+      {{/if}}
+      {{/if}}
+{{/each}}
+      {{/if}}
+
+      {{#if operation.responses}}
+      <div class="section-title">{{i18n.responses}}</div>
+      <table><tr><th>Status</th><th>Description</th></tr>
+{{#each operation.responses}}
+        <tr><td><code>{{@key}}</code></td><td>{{{cleanHtml description}}}</td></tr>
+{{/each}}
+      </table>
+{{#each operation.responses}}
+{{#if this.content}}
+{{#each this.content}}
+{{#if this.schema}}
+{{#if this.schema.properties}}
+      <div class="section-title">Response Body ({{@key}})</div>
+      <table>
+        <tr><th>Name</th><th>Type</th><th>Description</th></tr>
+{{#each this.schema.properties}}
+        <tr><td><code>{{@key}}</code></td><td>{{schemaType this}}{{#if (schemaFormat this)}} ({{schemaFormat this}}){{/if}}{{#if this.items}}[{{schemaType this.items}}]{{/if}}</td><td>{{{cleanHtml this.description}}}</td></tr>
+{{/each}}
+      </table>
+{{/if}}
+{{/if}}
+{{/each}}
+{{/if}}
+{{/each}}
       {{/if}}
     </div>
 {{/each}}

@@ -54,7 +54,7 @@ a{color:#667eea}
         {{@key}}
       </div>
       {{#if operation.summary}}<div class="op-summary">{{operation.summary}}</div>{{/if}}
-      {{#if operation.description}}<p>{{operation.description}}</p>{{/if}}
+      {{#if operation.description}}<p>{{{cleanHtml operation.description}}}</p>{{/if}}
       {{#if operation.operationId}}<div class="op-id">{{i18n.operationId}}: <code>{{operation.operationId}}</code></div>{{/if}}
       {{#if operation.tags}}<div class="op-id">{{i18n.tags}}: {{#each operation.tags}}<code>{{this}}</code> {{/each}}</div>{{/if}}
 
@@ -63,14 +63,14 @@ a{color:#667eea}
       <table>
         <tr><th>Name</th><th>In</th><th>Type</th><th>{{i18n.required}}</th><th>Description</th></tr>
 {{#each operation.parameters}}
-        <tr><td><code>{{name}}</code></td><td>{{in}}</td><td>{{type}}{{#if schema.type}} ({{schema.type}}){{/if}}</td><td>{{#if required}}✅{{else}}❌{{/if}}</td><td>{{#if description}}{{description}}{{else}}-{{/if}}</td></tr>
+        <tr><td><code>{{name}}</code></td><td>{{in}}</td><td>{{schemaType schema}}{{#if (schemaFormat schema)}} ({{schemaFormat schema}}){{/if}}{{#if items}}[]{{/if}}</td><td>{{#if required}}✅{{else}}❌{{/if}}</td><td>{{#if description}}{{{cleanHtml description}}}{{else}}-{{/if}}</td></tr>
 {{/each}}
       </table>
       {{/if}}
 
       {{#if operation.requestBody}}
       <h4>{{i18n.requestBody}}</h4>
-      {{#if operation.requestBody.description}}<p>{{operation.requestBody.description}}</p>{{/if}}
+      {{#if operation.requestBody.description}}<p>{{{cleanHtml operation.requestBody.description}}}</p>{{/if}}
       <p>{{i18n.required}}: {{#if operation.requestBody.required}}✅ Yes{{else}}❌ No{{/if}}</p>
       {{/if}}
 
@@ -78,7 +78,7 @@ a{color:#667eea}
       <h4>{{i18n.responses}}</h4>
       <table><tr><th>Status</th><th>Description</th></tr>
 {{#each operation.responses}}
-        <tr><td><code>{{@key}}</code></td><td>{{description}}</td></tr>
+        <tr><td><code>{{@key}}</code></td><td>{{{cleanHtml description}}}</td></tr>
 {{/each}}
       </table>
       {{/if}}

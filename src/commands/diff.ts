@@ -87,6 +87,11 @@ export async function diffCommand(options: DiffOptions = {}): Promise<void> {
     if (fs.existsSync(docs1) && fs.existsSync(docs2)) {
       const changes = await versionManager.compareVersions(version1, version2, docs1, docs2);
       displayChanges(changes);
+
+      // Generate CHANGELOG.md
+      if (config.output) {
+        await generateChangelog(versionManager, path.resolve(config.output));
+      }
     }
   }
 }
@@ -132,4 +137,60 @@ function displayChanges(changes: ChangeSummary): void {
   }
 
   console.log();
+}
+
+async function generateChangelog(versionManager: VersionManager, outputDir: string): Promise<void> {
+  const allVersions = versionManager.getAllVersions();
+  if (allVersions.length < 2) return;
+
+  const changelogPath = path.join(outputDir, 'CHANGELOG.md');
+  let content = '# Changelog\n\n';
+
+  for (let i = 0; i < allVersions.length - 1; i++) {
+    const v1 = allVersions[i];
+    const v2 = allVersions[i + 1];
+
+    const snap1 = findSnapshotDirectory(
+      path.join(path.dirname(outputDir), 'versions'),
+      v1.version, v1.timestamp
+    );
+    const snap2 = findSnapshotDirectory(
+      path.join(path.dirname(outputDir), 'versions'),
+      v2.version, v2.timestamp
+    );
+
+    content += `## ${v1.version} (${new Date(v1.timestamp).toISOString().split('T')[0]})\n\n`;
+
+    if (snap1 && snap2) {
+      const docs1 = path.join(snap1, 'docs');
+      const docs2 = path.join(snap2, 'docs');
+      if (fs.existsSync(docs1) && fs.existsSync(docs2)) {
+        const changes = await versionManager.compareVersions(v1.version, v2.version, docs1, docs2);
+        if (changes.added.length > 0) {
+          content += `### Added\n\n`;
+          for (const file of changes.added) content += `- ${file}\n`;
+          content += '\n';
+        }
+        if (changes.removed.length > 0) {
+          content += `### Removed\n\n`;
+          for (const file of changes.removed) content += `- ${file}\n`;
+          content += '\n';
+        }
+        if (changes.modified.length > 0) {
+          content += `### Modified\n\n`;
+          for (const file of changes.modified) content += `- ${file}\n`;
+          content += '\n';
+        }
+      }
+    }
+
+    if (v1.specHash !== v2?.specHash) {
+      content += `**OpenAPI spec changed** (hash: ${v1.specHash.substring(0, 8)})\n\n`;
+    }
+
+    content += '---\n\n';
+  }
+
+  fs.writeFileSync(changelogPath, content, 'utf8');
+  logger.success(`Changelog generated: ${changelogPath}`);
 }

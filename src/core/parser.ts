@@ -126,6 +126,9 @@ export class OpenAPIParser {
         rawSpec = yaml.load(content);
       }
 
+      // Resolve external file references before validation
+      rawSpec = this.resolveFileRefs(rawSpec, path.dirname(fullPath));
+
       // Validate spec
       try {
         await SwaggerParser.validate(rawSpec);
@@ -139,6 +142,72 @@ export class OpenAPIParser {
     const spec = this.deepResolve(rawSpec, lenient);
 
     return new OpenAPIParser(spec as OpenAPISpec);
+  }
+
+  /**
+   * Resolve external file $refs (e.g., ./components/user.yaml) by reading and inlining them.
+   */
+  private static resolveFileRefs(obj: any, baseDir: string, visited: Set<string> = new Set()): any {
+    if (obj === null || typeof obj !== 'object') return obj;
+    if (Array.isArray(obj)) return obj.map(item => OpenAPIParser.resolveFileRefs(item, baseDir, visited));
+
+    if (typeof obj.$ref === 'string' && !obj.$ref.startsWith('#')) {
+      // External file ref
+      const refPath = path.resolve(baseDir, obj.$ref);
+      if (visited.has(refPath)) return { description: '' };
+      visited.add(refPath);
+
+      let fragment = '';
+      let filePath = refPath;
+      const hashIdx = obj.$ref.indexOf('#');
+      if (hashIdx >= 0) {
+        fragment = obj.$ref.substring(hashIdx + 1);
+        filePath = path.resolve(baseDir, obj.$ref.substring(0, hashIdx));
+      }
+
+      if (!fs.existsSync(filePath)) {
+        logger.warn(`External ref file not found: ${filePath}`);
+        return { description: '' };
+      }
+
+      let content: any;
+      try {
+        const raw = fs.readFileSync(filePath, 'utf8');
+        content = filePath.endsWith('.json') ? JSON.parse(raw) : yaml.load(raw);
+      } catch (err: any) {
+        logger.warn(`Failed to read external ref ${filePath}: ${err.message}`);
+        return { description: '' };
+      }
+
+      // Resolve nested file refs within the loaded content
+      content = OpenAPIParser.resolveFileRefs(content, path.dirname(filePath), visited);
+
+      // Navigate to fragment if present (e.g., #/components/schemas/User)
+      if (fragment) {
+        const parts = fragment.split('/').filter(Boolean);
+        for (const part of parts) {
+          if (content && typeof content === 'object' && part in content) {
+            content = content[part];
+          } else {
+            logger.warn(`Fragment not found in ${filePath}: ${fragment}`);
+            return { description: '' };
+          }
+        }
+      }
+
+      // Merge with any sibling keys
+      const rest: any = {};
+      for (const [k, v] of Object.entries(obj)) {
+        if (k !== '$ref') rest[k] = OpenAPIParser.resolveFileRefs(v, baseDir, visited);
+      }
+      return typeof content === 'object' && content !== null ? { ...content, ...rest } : content;
+    }
+
+    const result: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      result[key] = OpenAPIParser.resolveFileRefs(value, baseDir, visited);
+    }
+    return result;
   }
 
   /**

@@ -45,8 +45,8 @@ a{color:#667eea}
 {{#each schemas}}
     <div class="card" id="schema-{{@key}}">
       <h2>{{@key}}</h2>
-      {{#if this.description}}<div class="desc">{{this.description}}</div>{{/if}}
-      {{#if this.type}}<span class="type-badge">{{this.type}}</span>{{/if}}
+      {{#if this.description}}<div class="desc">{{{cleanHtml this.description}}}</div>{{/if}}
+      {{#if this.type}}<span class="type-badge">{{schemaType this}}</span>{{/if}}
 
       {{#if this.properties}}
       <table>
@@ -54,9 +54,9 @@ a{color:#667eea}
 {{#each this.properties}}
         <tr>
           <td><code>{{@key}}</code></td>
-          <td>{{#if this.type}}<code>{{this.type}}</code>{{#if this.format}} ({{this.format}}){{/if}}{{else}}{{#if this.$ref}}<code>{{this.$ref}}</code>{{else}}object{{/if}}{{/if}}{{#if this.items}}[]{{/if}}</td>
+          <td>{{schemaType this}}{{#if (schemaFormat this)}} ({{schemaFormat this}}){{/if}}{{#if this.items}}[{{schemaType this.items}}[]]{{/if}}</td>
           <td>{{#if ../required}}{{#if (contains ../required @key)}}✅{{else}}❌{{/if}}{{else}}❌{{/if}}</td>
-          <td>{{#if this.description}}{{this.description}}{{else}}-{{/if}}</td>
+          <td>{{{cleanHtml this.description}}}</td>
         </tr>
 {{/each}}
       </table>

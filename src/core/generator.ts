@@ -157,11 +157,46 @@ export class DocGenerator {
       }
     }
 
-    // Generate schemas docs
-    const schemas = this.parser.getSchemas();
-    if (Object.keys(schemas).length > 0) {
+    // Generate schemas docs — include both component schemas and extracted inline schemas
+    const allSchemas: Record<string, any> = {};
+    const componentSchemas = this.parser.getSchemas();
+    Object.assign(allSchemas, componentSchemas);
+
+    // Extract unique inline schemas from operations
+    const seenKeys = new Set<string>();
+    for (const { path, method, operation } of this.parser.getOperations()) {
+      const rb = operation.requestBody;
+      if (rb?.content) {
+        for (const [ct, mt] of Object.entries(rb.content || {})) {
+          const schema = (mt as any).schema;
+          if (schema?.properties) {
+            const key = JSON.stringify(Object.keys(schema.properties).sort());
+            const name = this.inlineSchemaName(path, method, 'request', key, seenKeys);
+            if (name) {
+              allSchemas[name] = { ...schema, description: schema.description || `Request body for ${method.toUpperCase()} ${path}` };
+            }
+          }
+        }
+      }
+      if (operation.responses) {
+        for (const [code, resp] of Object.entries(operation.responses)) {
+          for (const [ct, mt] of Object.entries((resp as any).content || {})) {
+            const schema = (mt as any).schema;
+            if (schema?.properties) {
+              const key = JSON.stringify(Object.keys(schema.properties).sort());
+              const name = this.inlineSchemaName(path, method, `response_${code}`, key, seenKeys);
+              if (name) {
+                allSchemas[name] = { ...schema, description: schema.description || `Response body for ${method.toUpperCase()} ${path} → ${code}` };
+              }
+            }
+          }
+        }
+      }
+    }
+
+    if (Object.keys(allSchemas).length > 0) {
       const schemasPath = path.join(outputDir, `Schemas.${ext}`);
-      await this.generateSchemasDocs(schemasPath);
+      await this.generateSchemasDocs(schemasPath, allSchemas);
       generatedFiles.push(schemasPath);
     }
 
@@ -193,10 +228,10 @@ export class DocGenerator {
       generatedFiles.push(tagPath);
     }
 
-    const schemas = this.parser.getSchemas();
-    if (Object.keys(schemas).length > 0) {
+    const componentSchemas = this.parser.getSchemas();
+    if (Object.keys(componentSchemas).length > 0) {
       const schemasPath = path.join(outputDir, 'Schemas.md');
-      await this.generateSchemasDocs(schemasPath);
+      await this.generateSchemasDocs(schemasPath, componentSchemas);
       generatedFiles.push(schemasPath);
     }
 
@@ -481,15 +516,15 @@ export class DocGenerator {
     fs.writeFileSync(outputPath, content, 'utf8');
   }
 
-  private async generateSchemasDocs(outputPath: string): Promise<void> {
+  private async generateSchemasDocs(outputPath: string, schemasOverride?: Record<string, any>): Promise<void> {
     const isHtml = this.options.format === 'html';
     const tplName = isHtml ? 'Schemas.html.hbs' : 'Schemas.hbs';
     logger.info(`Generating Schemas.${isHtml ? 'html' : 'md'}...`);
 
-    const schemas = this.parser.getSchemas();
+    const resolvedSchemas = schemasOverride || this.parser.getSchemas();
 
     const content = this.renderTemplate(tplName, {
-      schemas,
+      schemas: resolvedSchemas,
       title: this.parser.getTitle()
     });
 
@@ -570,41 +605,25 @@ export class DocGenerator {
   private generateApiContent(data: any): string {
     const t = data.i18n || I18N.en;
     let content = `# ${t.apiReference}\n\n`;
+    content += `> **${data.title}** — Version ${data.version}\n\n---\n\n`;
 
     for (const [path, operations] of Object.entries(data.paths) as [string, any][]) {
-      content += `## ${path}\n\n`;
+      content += `## \`${path}\`\n\n`;
 
       for (const { method, operation } of operations) {
         const methodEmoji = this.getMethodEmoji(method);
-        content += `### ${methodEmoji} ${method.toUpperCase()}\n\n`;
-
-        if (operation.summary) content += `${operation.summary}\n\n`;
-        if (operation.description) content += `${operation.description}\n\n`;
+        content += `### ${methodEmoji} ${method.toUpperCase()} ${path}\n\n`;
+        if (operation.summary) content += `> **${operation.summary}**\n\n`;
+        if (operation.description) content += `${this.cleanHtml(operation.description)}\n\n`;
         if (operation.operationId) content += `**${t.operationId}:** \`${operation.operationId}\`\n\n`;
 
-        if (operation.parameters && operation.parameters.length > 0) {
-          content += `#### ${t.parameters}\n\n`;
-          content += `| Name | In | Type | ${t.required} | Description |\n`;
-          content += `|------|-----|------|----------|-------------|\n`;
-          for (const param of operation.parameters) {
-            const type = param.type || param.schema?.type || 'unknown';
-            content += `| ${param.name} | ${param.in} | ${type} | ${param.required ? 'Yes' : 'No'} | ${param.description || '-'} |\n`;
-          }
-          content += '\n';
+        if (operation.tags && operation.tags.length > 0) {
+          content += `**Tags:** ${operation.tags.map((t: string) => `\`${t}\``).join(' ')}\n\n`;
         }
 
-        if (operation.requestBody) {
-          content += `#### ${t.requestBody}\n\n`;
-          if (operation.requestBody.description) content += `${operation.requestBody.description}\n\n`;
-          content += `**${t.required}:** ${operation.requestBody.required ? 'Yes' : 'No'}\n\n`;
-        }
-
-        if (operation.responses) {
-          content += `#### ${t.responses}\n\n`;
-          for (const [code, response] of Object.entries(operation.responses) as [string, any]) {
-            content += `**${code}** - ${response.description}\n\n`;
-          }
-        }
+        content += this.renderParameters(operation.parameters, t);
+        content += this.renderRequestBody(operation.requestBody, t);
+        content += this.renderResponses(operation.responses, t);
         content += `---\n\n`;
       }
     }
@@ -614,82 +633,143 @@ export class DocGenerator {
   private generateTagContent(data: any): string {
     const t = data.i18n || I18N.en;
     let content = `# ${data.tagName}\n\n`;
-    content += `> ${t.partOf} **${data.title}**\n\n`;
+    content += `> ${t.partOf} **${data.title}**\n\n---\n\n`;
 
     for (const { path, method, operation } of data.operations) {
       const methodEmoji = this.getMethodEmoji(method);
       content += `## ${methodEmoji} \`${method.toUpperCase()}\` ${path}\n\n`;
       if (operation.summary) content += `> ${operation.summary}\n\n`;
-      if (operation.description) content += `${this.unescapeHtml(operation.description)}\n\n`;
-      if (operation.operationId) content += `**Operation ID:** \`${operation.operationId}\`\n\n`;
+      if (operation.description) content += `${this.cleanHtml(operation.description)}\n\n`;
+      if (operation.operationId) content += `**${t.operationId}:** \`${operation.operationId}\`\n\n`;
 
-      if (operation.parameters && operation.parameters.length > 0) {
-        content += `### ${t.parameters}\n\n`;
-        content += `| Name | In | Type | ${t.required} | Description |\n`;
-        content += `|------|-----|------|----------|-------------|\n`;
-        for (const param of operation.parameters) {
-          const type = param.schema?.type || param.type || 'unknown';
-          content += `| \`${param.name}\` | **${param.in}** | ${type} | ${param.required ? '✅ Yes' : '❌ No'} | ${param.description || '-'} |\n`;
-        }
-        content += '\n';
-      }
-
-      if (operation.requestBody) {
-        content += `### ${t.requestBody}\n\n`;
-        if (operation.requestBody.description) content += `${operation.requestBody.description}\n\n`;
-        content += `**Required:** ${operation.requestBody.required ? 'Yes' : 'No'}\n\n`;
-
-        for (const [ct, mediaType] of Object.entries(operation.requestBody.content || {})) {
-          content += `- **Content-Type:** \`${ct}\`\n`;
-          const schema = (mediaType as any).schema;
-          if (schema?.properties) {
-            content += `  | Name | Type | ${t.required} | Description |\n`;
-            content += `  |------|------|----------|-------------|\n`;
-            for (const [name, prop] of Object.entries(schema.properties)) {
-              const p = prop as any;
-              const type = p.type || 'object';
-              const required = schema.required?.includes(name) ? '✅ Yes' : '❌ No';
-              content += `  | \`${name}\` | ${type} | ${required} | ${p.description || '-'} |\n`;
-            }
-          }
-          content += '\n';
-        }
-      }
-
-      if (operation.responses) {
-        content += `### ${t.responses}\n\n`;
-        content += `| Status Code | Description |\n`;
-        content += `|-------------|-------------|\n`;
-        for (const [code, resp] of Object.entries(operation.responses)) {
-          content += `| **${code}** | ${(resp as any).description || '-'} |\n`;
-        }
-        content += '\n';
-      }
+      content += this.renderParameters(operation.parameters, t);
+      content += this.renderRequestBody(operation.requestBody, t);
+      content += this.renderResponses(operation.responses, t);
       content += `---\n\n`;
     }
     return content;
   }
 
+  private renderParameters(parameters: any[] | undefined, t: Record<string, string>): string {
+    if (!parameters || parameters.length === 0) return '';
+    let content = `### ${t.parameters}\n\n`;
+    content += `| Name | Located In | Type | ${t.required} | Description |\n`;
+    content += `|------|-----------|------|----------|-------------|\n`;
+    for (const param of parameters) {
+      const type = this.inferSchemaType(param.schema || param);
+      const fmt = (param.schema || param).format ? ` (${(param.schema || param).format})` : '';
+      const items = (param.schema || param).items ? '[]' : '';
+      content += `| \`${param.name}\` | **${param.in}** | ${type}${fmt}${items} | ${param.required ? '✅ Yes' : '❌ No'} | ${this.cleanHtml(param.description || '-')} |\n`;
+    }
+    return content + '\n';
+  }
+
+  private renderRequestBody(requestBody: any, t: Record<string, string>): string {
+    if (!requestBody) return '';
+    let content = `### ${t.requestBody}\n\n`;
+    if (requestBody.description) content += `${this.cleanHtml(requestBody.description)}\n\n`;
+    content += `- **Required:** ${requestBody.required ? 'Yes' : 'No'}\n\n`;
+
+    for (const [ct, mediaType] of Object.entries(requestBody.content || {})) {
+      content += `- **Content-Type:** \`${ct}\`\n`;
+      const schema = (mediaType as any).schema;
+      if (schema?.properties) {
+        content += this.renderSchemaProperties(schema.properties, schema.required, 2);
+      } else if (schema?.items?.properties) {
+        content += `  **Array of:** ${this.inferSchemaType(schema.items)}\n\n`;
+        content += this.renderSchemaProperties(schema.items.properties, schema.items.required, 2);
+      } else {
+        content += `  - **Type:** \`${this.inferSchemaType(schema)}\`\n`;
+      }
+    }
+    return content + '\n';
+  }
+
+  private renderResponses(responses: Record<string, any> | undefined, t: Record<string, string>): string {
+    if (!responses) return '';
+    let content = `### ${t.responses}\n\n`;
+    content += `| Status Code | Description |\n`;
+    content += `|-------------|-------------|\n`;
+    for (const [code, resp] of Object.entries(responses)) {
+      content += `| **${code}** | ${this.cleanHtml(resp.description || '-')} |\n`;
+    }
+    content += '\n';
+
+    for (const [code, resp] of Object.entries(responses)) {
+      for (const [ct, mediaType] of Object.entries(resp.content || {})) {
+        const schema = (mediaType as any).schema;
+        if (schema?.properties) {
+          content += `**Response Body** (\`${ct}\`):\n\n`;
+          content += this.renderSchemaProperties(schema.properties, schema.required, 0);
+          content += '\n';
+        }
+      }
+    }
+    return content;
+  }
+
+  private renderSchemaProperties(properties: Record<string, any>, requiredFields: string[] | undefined, indent: number): string {
+    const pad = '  '.repeat(indent);
+    const typeCol = 'Type';
+    const reqCol = indent === 0 ? 'Description' : '';
+    let content = `${pad}| Name | Type | ${reqCol} |\n`;
+    content += `${pad}|------|------|${reqCol ? '-------------|' : ''}\n`;
+    for (const [name, prop] of Object.entries(properties)) {
+      const type = this.inferSchemaType(prop);
+      const items = prop.items ? `[${this.inferSchemaType(prop.items)}]` : '';
+      const format = prop.format ? ` (${prop.format})` : '';
+      const required = requiredFields?.includes(name) ? '✅ Yes' : '❌ No';
+      if (indent === 0) {
+        content += `${pad}| \`${name}\` | ${type}${format}${items} | ${this.cleanHtml(prop.description || '-')} |\n`;
+      } else {
+        content += `${pad}| \`${name}\` | ${type}${format}${items} | ${required} | ${this.cleanHtml(prop.description || '-')} |\n`;
+      }
+    }
+    return content + '\n';
+  }
+
+  private inferSchemaType(schema: any): string {
+    if (!schema || typeof schema !== 'object') return 'object';
+    if (schema.type) return schema.type;
+    if (schema.properties) return 'object';
+    if (schema.items) return 'array';
+    if (schema.oneOf || schema.anyOf) return 'object';
+    return 'object';
+  }
+
+  private inlineSchemaName(path: string, method: string, suffix: string, propertyKey: string, seen: Set<string>): string | null {
+    if (seen.has(propertyKey)) return null;
+    seen.add(propertyKey);
+    // Create a readable name from path + method + suffix
+    const pathPart = path.replace(/^\//, '').replace(/\//g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+    const methodPart = method.charAt(0).toUpperCase() + method.slice(1);
+    const suffixPart = suffix.replace(/[^a-zA-Z0-9]/g, '_');
+    return `${methodPart}${pathPart}${suffixPart}Schema`;
+  }
+
   private generateSchemasContent(data: any): string {
     const t = data.i18n || I18N.en;
     let content = `# ${t.dataSchemas}\n\n`;
+    content += `> **${data.title}** — Schema Definitions\n\n---\n\n`;
 
     for (const [name, schema] of Object.entries(data.schemas) as [string, any]) {
-      content += `## ${name}\n\n`;
-      if (schema.description) content += `${schema.description}\n\n`;
-      if (schema.type) content += `**Type:** ${schema.type}\n\n`;
+      content += `## \`${name}\`\n\n`;
+      if (schema.description) content += `> ${schema.description}\n\n`;
+      content += `**Type:** \`${this.inferSchemaType(schema)}\`\n\n`;
 
       if (schema.properties) {
         content += `### ${t.properties}\n\n`;
-        content += `| Name | Type | ${t.required} | Description |\n`;
-        content += `|------|------|----------|-------------|\n`;
-        for (const [propName, propSchema] of Object.entries(schema.properties) as [string, any]) {
-          const type = propSchema.type || 'unknown';
-          const required = schema.required?.includes(propName) ? 'Yes' : 'No';
-          content += `| ${propName} | ${type} | ${required} | ${propSchema.description || '-'} |\n`;
-        }
-        content += '\n';
+        content += this.renderSchemaProperties(schema.properties, schema.required, 0);
       }
+
+      if (schema.required && schema.required.length > 0) {
+        content += `**Required fields:** ${schema.required.map((r: string) => `\`${r}\``).join(', ')}\n\n`;
+      }
+
+      if (schema.example) {
+        content += `### Example\n\n\`\`\`json\n${JSON.stringify(schema.example, null, 2)}\n\`\`\`\n\n`;
+      }
+
       content += `---\n\n`;
     }
     return content;
@@ -716,10 +796,19 @@ export class DocGenerator {
       .replace(/-+$/, '');
   }
 
-  private unescapeHtml(str: string): string {
+  private cleanHtml(str: string): string {
+    if (!str) return str;
     return str
-      .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-      .replace(/&amp;/g, '&').replace(/&quot;/g, '"')
-      .replace(/&#x27;/g, "'").replace(/&#39;/g, "'");
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/?\w+(?:\s[^>]*)?>/g, '')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#x27;/g, "'")
+      .replace(/&#39;/g, "'")
+      .replace(/&nbsp;/g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
   }
 }
