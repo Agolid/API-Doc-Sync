@@ -50,6 +50,8 @@ Handlebars.registerHelper('cleanHtml', (str: string) => {
       .replace(/&nbsp;/g, ' ')
       .replace(/\n{3,}/g, '\n\n')  // collapse multiple newlines
       .trim()
+      // Fix JSON snippets embedded in descriptions (missing commas)
+      .replace(/(\})\n(\s*)(\"[a-zA-Z])/g, '$1,$2$3')
   );
 });
 
@@ -697,6 +699,25 @@ export class DocGenerator {
       if (operation.operationId) content += `**${t.operationId}:** \`${operation.operationId}\`\n\n`;
 
       content += this.renderParameters(operation.parameters, t);
+
+      // Headers section
+      const spec = this.parser.getSpec();
+      const globalSecurity = spec.security || [];
+      const opSecurity = operation.security || globalSecurity;
+      if (operation.requestBody?.content) {
+        content += `### Headers\n\n`;
+        content += `| Header | Value | Required |\n|--------|-------|----------|\n`;
+        if (opSecurity.length > 0) {
+          content += `| Authorization | See [Authentication](./README.md#authentication) | ✅ |\n`;
+        } else {
+          content += `| Authorization | Not required | - |\n`;
+        }
+        for (const ct of Object.keys(operation.requestBody.content)) {
+          content += `| Content-Type | \`${ct}\` | ✅ |\n`;
+        }
+        content += '\n';
+      }
+
       content += this.renderRequestBody(operation.requestBody, t);
       content += this.renderResponses(operation.responses, t);
       content += `---\n\n`;
@@ -889,7 +910,7 @@ export class DocGenerator {
 
   private cleanHtml(str: string): string {
     if (!str) return str;
-    return str
+    let result = str
       .replace(/<br\s*\/?>/gi, '\n')
       .replace(/<\/?\w+(?:\s[^>]*)?>/g, '')
       .replace(/&amp;/g, '&')
@@ -901,5 +922,10 @@ export class DocGenerator {
       .replace(/&nbsp;/g, ' ')
       .replace(/\n{3,}/g, '\n\n')
       .trim();
+
+    // Fix JSON snippets embedded in descriptions (e.g., missing commas before next key)
+    result = result.replace(/(\})\n(\s*)(\"[a-zA-Z])/g, '$1,$2$3');
+    result = result.replace(/(\})\n(\s+)(\"[a-zA-Z])/g, '$1,\n$2$3');
+    return result;
   }
 }

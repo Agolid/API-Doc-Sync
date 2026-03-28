@@ -34,6 +34,19 @@
 {{/if}}
 
 {{#if operation.requestBody}}
+### Headers
+
+| Header | Value | Required |
+|--------|-------|----------|
+{{#if operation.security}}
+| Authorization | Bearer `<token>` / API Key (`x-api-key`) | ✅ |
+{{else}}
+| Authorization | Not required | - |
+{{/if}}
+{{#each operation.requestBody.content}}
+| Content-Type | `{{@key}}` | ✅ |
+{{/each}}
+
 ### Request Body
 
 {{#if operation.requestBody.description}}

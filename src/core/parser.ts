@@ -34,6 +34,7 @@ export interface OpenAPISpec {
     name: string;
     description?: string;
   }>;
+  security?: Record<string, string[]>[];
 }
 
 export interface PathItem {
